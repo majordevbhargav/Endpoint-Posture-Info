@@ -1,0 +1,28 @@
+# secrets / credentials
+backend/.env
+.env
+**/posture_common_cred.xml
+
+# runtime state / flat-file queue coordination
+**/pending_devices.txt
+**/seen_macs.txt
+**/ip_mac_map.txt
+**/posture_ui_state.json
+**/*.json.bak
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# postgres local volume (when not using docker-compose named volumes)
+pgdata/
+
+# editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

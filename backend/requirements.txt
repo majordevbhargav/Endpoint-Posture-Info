@@ -1,0 +1,15 @@
+Flask==3.0.3
+psycopg2-binary==2.9.9
+requests==2.32.3
+urllib3==2.2.2
+python-dotenv==1.0.1
+
+# Phase 6+ (not required to start; see project plan Section 12.3)
+# redis==5.0.4
+# rq==1.16.2
+# gunicorn==22.0.0
+
+# Dev / test tooling
+pytest==8.2.0
+black==24.4.2
+ruff==0.4.4

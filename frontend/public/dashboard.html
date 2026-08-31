@@ -1,0 +1,2440 @@
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light only">
+<title>VE Compliance Engine</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js"></script>
+<style>
+  html { color-scheme: light only; }
+  :root {
+    --sidebar-bg: #0f1729;
+    --sidebar-text: #9aa4b8;
+    --sidebar-text-active: #ffffff;
+    --sidebar-active-bg: #2563eb;
+    --bg: #f6f7f9;
+    --card: #ffffff;
+    --border: #e5e7eb;
+    --text: #111318;
+    --muted: #6b7280;
+    --green: #16a34a;   --green-bg: #f0faf3;
+    --orange: #f97316;  --orange-bg: #fff7ed;
+    --red: #dc2626;     --red-bg: #fef2f2;
+    --blue: #2563eb;    --blue-bg: #eff6ff;
+    --purple: #8b5cf6;  --purple-bg: #f5f3ff;
+    --neutral-bg: #f3f4f6;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, "Segoe UI", Inter, Helvetica, Arial, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .mono { font-family: "SFMono-Regular", Consolas, Menlo, monospace; }
+
+  /* ---- layout ---- */
+  .shell { display: flex; min-height: 100vh; }
+
+  .sidebar {
+    width: 240px; flex: 0 0 240px;
+    background: var(--sidebar-bg);
+    display: flex; flex-direction: column;
+    padding: 20px 14px;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; padding: 6px 8px 22px; }
+  .brand-icon {
+    width: 34px; height: 34px; border-radius: 9px;
+    background: linear-gradient(135deg, #22c55e, #16a34a);
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-weight: 700; font-size: 16px; flex: 0 0 auto;
+  }
+  .brand-name { color: #fff; font-weight: 600; font-size: 14.5px; line-height: 1.25; }
+
+  .nav { list-style: none; margin: 0; padding: 0; flex: 1; }
+  .nav li + li { margin-top: 2px; }
+  .nav a {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 10px; border-radius: 8px;
+    color: var(--sidebar-text); text-decoration: none; font-size: 13.5px;
+    cursor: pointer;
+  }
+  .nav a:hover { background: rgba(255,255,255,0.06); color: #fff; }
+  .nav a.active { background: var(--sidebar-active-bg); color: #fff; }
+  .nav .icon { width: 16px; text-align: center; font-size: 14px; }
+  .nav-label {
+    font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+    color: #5b6577; padding: 16px 10px 6px;
+  }
+
+  .sidebar-footer {
+    border-top: 1px solid rgba(255,255,255,0.08);
+    padding-top: 12px; margin-top: 12px;
+    display: flex; align-items: center; gap: 10px; padding-left: 8px;
+  }
+  .avatar {
+    width: 30px; height: 30px; border-radius: 50%;
+    background: #374151; color: #fff; display: flex; align-items: center;
+    justify-content: center; font-size: 12px; font-weight: 600; flex: 0 0 auto;
+  }
+  .who-name { color: #fff; font-size: 13px; font-weight: 600; }
+  .who-role { color: var(--sidebar-text); font-size: 11.5px; }
+
+  .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+
+  .topbar {
+    display: flex; align-items: center; gap: 14px;
+    padding: 14px 24px; background: var(--card); border-bottom: 1px solid var(--border);
+  }
+  .topbar h1 { font-size: 17px; margin: 0; font-weight: 600; }
+  .topbar .subtitle { font-size: 12.5px; color: var(--muted); margin-top: 1px; }
+  .topbar .titles { flex: 0 0 auto; }
+  .topbar .spacer { flex: 1; }
+  .search-box {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+    padding: 7px 12px; width: 280px; color: var(--muted); font-size: 13px;
+  }
+  .search-box input { border: none; background: transparent; outline: none; flex: 1; font: inherit; color: var(--text); }
+  .bell {
+    width: 34px; height: 34px; border-radius: 8px; border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center; position: relative;
+    color: var(--muted); cursor: not-allowed; flex: 0 0 auto;
+  }
+  .bell::after {
+    content: ""; position: absolute; top: -5px; right: 24px;
+    background: var(--card); color: var(--muted); border: 1px solid var(--border);
+    font-size: 10px; padding: 3px 7px; border-radius: 5px; white-space: nowrap;
+    opacity: 0; pointer-events: none; transition: opacity .15s;
+  }
+  .bell:hover::after { content: "Notifications- coming soon"; opacity: 1; }
+
+  .content { padding: 22px 24px 60px; flex: 1; }
+  .page { display: none; }
+  .page.active { display: block; }
+
+  /* ---- cards / grid ---- */
+  .grid { display: grid; gap: 16px; }
+  .grid-5 { grid-template-columns: repeat(5, 1fr); }
+  .grid-6 { grid-template-columns: repeat(6, 1fr); }
+  .grid-2 { grid-template-columns: 1.05fr 1.4fr; }
+  .grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+  @media (max-width: 1180px) { .grid-5 { grid-template-columns: repeat(3, 1fr); } .grid-6 { grid-template-columns: repeat(3, 1fr); } .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 18px; }
+  .card-title { font-size: 14px; font-weight: 600; margin: 0 0 14px; display: flex; align-items: center; justify-content: space-between; }
+  .card-title .link { font-size: 12.5px; font-weight: 500; color: var(--blue); cursor: pointer; }
+  .score-pill { font-size: 12.5px; font-weight: 700; padding: 3px 10px; border-radius: 99px; background: var(--blue-bg); color: var(--blue); }
+  .range-select { display: flex; gap: 2px; }
+  .range-select button {
+    font-family: inherit; font-size: 11px; font-weight: 600; padding: 4px 9px; border-radius: 6px;
+    border: 1px solid var(--border); background: var(--card); color: var(--muted); cursor: pointer;
+  }
+  .range-select button.active { background: var(--blue); border-color: var(--blue); color: #fff; }
+
+  .stat-card { display: flex; gap: 12px; }
+  .stat-card.clickable { cursor: pointer; transition: box-shadow .12s, border-color .12s; }
+  .stat-card.clickable:hover { box-shadow: 0 2px 10px rgba(17,19,24,0.08); border-color: #cbd5e1; }
+  .stat-icon { width: 42px; height: 42px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 17px; flex: 0 0 auto; }
+  .stat-label { font-size: 12.5px; color: var(--muted); margin-bottom: 3px; }
+  .stat-value { font-size: 22px; font-weight: 700; line-height: 1.1; }
+  .stat-delta { font-size: 11.5px; margin-top: 4px; color: var(--muted); }
+  .stat-delta.up { color: var(--green); }
+
+  .legend-item { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 6px 0; }
+  .legend-dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; }
+  .legend-item .n { margin-left: auto; font-weight: 600; }
+  .legend-item .pct { color: var(--muted); width: 42px; text-align: right; }
+
+  .bar-row { margin-bottom: 12px; }
+  .bar-row-top { display: flex; justify-content: space-between; font-size: 12.5px; margin-bottom: 5px; }
+  .bar-track { height: 8px; background: var(--bg); border-radius: 5px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 5px; }
+  .not-impl-tag { font-size: 10px; background: var(--bg); color: var(--muted); border: 1px solid var(--border); padding: 1px 6px; border-radius: 10px; margin-left: 6px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .03em; color: var(--muted); padding: 0 8px 8px; font-weight: 600; }
+  td { padding: 10px 8px; border-top: 1px solid var(--border-soft, #f0f1f3); vertical-align: middle; }
+  tr:hover td { background: var(--bg); }
+
+  .badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 20px; }
+  .badge-compliant { background: var(--green-bg); color: var(--green); }
+  .badge-non-compliant { background: var(--orange-bg); color: var(--orange); }
+  .badge-at-risk, .badge-error { background: var(--red-bg); color: var(--red); }
+  .badge-skipped, .badge-never-checked, .badge-unknown { background: var(--bg); color: var(--muted); }
+
+  .health-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; font-size: 13px; }
+  .health-dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; }
+  .health-name { flex: 1; }
+  .health-tag { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 20px; }
+  .health-tag.ok { background: var(--green-bg); color: var(--green); }
+  .health-tag.bad { background: var(--red-bg); color: var(--red); }
+  .health-tag.soon { background: var(--bg); color: var(--muted); }
+
+  .empty { color: var(--muted); font-size: 13px; padding: 20px 4px; text-align: center; }
+
+  /* ---- coming soon pages ---- */
+  .soon-wrap { display: flex; align-items: center; justify-content: center; min-height: 60vh; }
+  .soon-card { text-align: center; max-width: 420px; }
+  .soon-icon { font-size: 34px; margin-bottom: 14px; }
+  .soon-title { font-size: 17px; font-weight: 600; margin-bottom: 8px; }
+  .soon-desc { font-size: 13.5px; color: var(--muted); line-height: 1.6; }
+  .soon-badge { display: inline-block; margin-top: 14px; font-size: 11px; font-weight: 600; color: var(--blue); background: var(--blue-bg); padding: 4px 10px; border-radius: 20px; }
+
+  .trend-note { font-size: 12px; color: var(--muted); margin-top: 10px; }
+
+  /* Needs-attention block on Assessments page- same workflow as before,
+     just relocated. */
+  .na-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid var(--border-soft, #f0f1f3); flex-wrap: wrap; }
+  .na-row:first-child { border-top: none; }
+  .na-actions { display: flex; gap: 6px; margin-left: auto; }
+  .btn { font: inherit; font-size: 12.5px; padding: 6px 11px; border-radius: 7px; border: 1px solid var(--border); background: var(--card); color: var(--text); cursor: pointer; }
+  .btn:hover { background: var(--bg); }
+  .btn-primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+  .cred-form { display: none; gap: 8px; width: 100%; margin-top: 8px; }
+  .cred-form.open { display: flex; }
+  .cred-form input { font: inherit; font-size: 12.5px; padding: 6px 9px; border: 1px solid var(--border); border-radius: 6px; flex: 1; }
+
+  /* Expandable endpoint details styling */
+  .endpoint-row { cursor: pointer; transition: background 0.15s ease; }
+  .endpoint-row:hover { background: var(--border-soft, #f0f1f3); }
+  .details-row { background: var(--bg, #f7f7f8); }
+  .endpoint-details-expanded { padding: 16px; border-top: 1px dashed var(--border); border-bottom: 1px dashed var(--border); }
+  .details-grid { display: grid; grid-template-columns: 1fr 1.2fr; gap: 24px; }
+  .details-col h4 { margin-top: 0; margin-bottom: 12px; color: var(--text); font-size: 13px; font-weight: 600; border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+  .details-col div { margin-bottom: 6px; font-size: 12.5px; }
+  .checks-list { display: flex; flex-direction: column; gap: 8px; }
+  .check-item { display: flex; align-items: center; gap: 8px; }
+  .check-icon { font-size: 14px; flex-shrink: 0; }
+  .check-name { font-size: 12.5px; }
+  
+  /* Ports layout styling */
+  .ports-list-wrap { max-height: 150px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px; background: var(--card); }
+  .ports-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .ports-table th, .ports-table td { padding: 6px 10px; text-align: left; border-bottom: 1px solid var(--border-soft); }
+  .ports-table th { background: var(--bg); font-weight: 600; position: sticky; top: 0; }
+  .ports-table tr:last-child td { border-bottom: none; }
+
+  /* Endpoint telemetry */
+  .endpoint-details-full { background: #fbfcfe; }
+  .endpoint-top-grid {
+    display: grid;
+    grid-template-columns: 1.15fr 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  .endpoint-info-card,
+  .endpoint-section {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+  }
+  .endpoint-info-card h4,
+  .endpoint-section h4 {
+    margin-top: 0;
+    margin-bottom: 10px;
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 600;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 7px;
+  }
+  .endpoint-info-card > div {
+    margin-bottom: 6px;
+    font-size: 12.5px;
+  }
+  .endpoint-info-card > div:last-child { margin-bottom: 0; }
+
+  .resource-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .resource-card {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px;
+    background: var(--card);
+  }
+  .resource-card-head,
+  .resource-big-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    font-size: 12px;
+  }
+  .resource-card-head strong,
+  .resource-big-row strong {
+    font-size: 14px;
+  }
+  .resource-track {
+    height: 7px;
+    margin-top: 8px;
+    background: #edf0f4;
+    border-radius: 99px;
+    overflow: hidden;
+  }
+  .resource-fill {
+    height: 100%;
+    background: var(--blue);
+    border-radius: 99px;
+  }
+  .resource-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 10px;
+  }
+  .resource-stats > div,
+  .hardware-grid > div {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 10px;
+    background: var(--bg);
+    border-radius: 6px;
+    font-size: 12px;
+  }
+  .resource-stats span,
+  .hardware-grid span {
+    color: var(--muted);
+  }
+
+  .hardware-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .resource-big-row {
+    padding: 10px;
+    margin-bottom: 7px;
+    background: var(--bg);
+    border-radius: 6px;
+  }
+  .resource-big-row:last-child { margin-bottom: 0; }
+
+  .endpoint-two-column {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-top: 14px;
+  }
+  .endpoint-section { min-width: 0; }
+
+  .endpoint-table-wrap {
+    max-height: 240px;
+    overflow-y: auto;
+  }
+  .process-table-wrap { max-height: 260px; }
+  .app-table-wrap { max-height: 260px; }
+
+  .endpoint-checks {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .endpoint-check-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    padding: 9px;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    background: var(--card);
+  }
+  .endpoint-check-main { min-width: 0; flex: 1; }
+  .endpoint-check-title {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 3px;
+  }
+  .endpoint-check-detail {
+    color: var(--muted);
+    font-size: 12px;
+    overflow-wrap: anywhere;
+  }
+  .port-detail-line {
+    padding: 4px 0;
+    overflow-wrap: anywhere;
+  }
+  .port-detail-line + .port-detail-line {
+    margin-top: 2px;
+    padding-top: 6px;
+    border-top: 1px dashed var(--border);
+  }
+  .port-detail-line strong {
+    display: inline-block;
+    margin-right: 4px;
+  }
+  .port-detail-open strong { color: var(--green); }
+  .port-detail-blocked strong { color: var(--red); }
+  .endpoint-check-badge,
+  .endpoint-mini-badge {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    padding: 2px 7px;
+    font-size: 10px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .endpoint-check-ok,
+  .endpoint-mini-ok {
+    background: var(--green-bg);
+    color: var(--green);
+  }
+  .endpoint-check-bad,
+  .endpoint-mini-bad {
+    background: var(--red-bg);
+    color: var(--red);
+  }
+  .endpoint-check-error {
+    background: var(--orange-bg);
+    color: var(--orange);
+  }
+  .endpoint-check-unknown,
+  .endpoint-mini-neutral {
+    background: var(--bg);
+    color: var(--muted);
+  }
+  .endpoint-empty {
+    padding: 14px;
+    border: 1px dashed var(--border);
+    border-radius: 7px;
+    color: var(--muted);
+    font-size: 12px;
+    background: var(--card);
+  }
+
+  @media (max-width: 1100px) {
+    .endpoint-top-grid,
+    .endpoint-two-column {
+      grid-template-columns: 1fr;
+    }
+  }
+  @media (max-width: 700px) {
+    .resource-grid,
+    .resource-stats {
+      grid-template-columns: 1fr;
+    }
+  }
+
+
+  /* ================= Global dark theme ================= */
+  body.dark-theme {
+    --bg:#0b1220; --card:#111a2c; --border:#1f2a3d; --border-soft:#182238;
+    --text:#e7ecf5; --muted:#8a95ab; --green:#22c55e; --green-bg:rgba(34,197,94,.12);
+    --orange:#f59e0b; --orange-bg:rgba(245,158,11,.12); --red:#ef4444; --red-bg:rgba(239,68,68,.14);
+    --blue:#3b82f6; --blue-bg:rgba(59,130,246,.12); --purple:#a78bfa; --purple-bg:rgba(167,139,250,.12);
+    --neutral-bg: rgba(148,163,184,.14);
+  }
+  /* All card-like surfaces (.card, .btn, .endpoint-section, .endpoint-info-card,
+     .resource-card, .endpoint-check-row, .endpoint-empty, .ports-list-wrap,
+     .range-select button, .search-box) now use var(--card) directly in their
+     base rules above, so they automatically follow the theme - no per-theme
+     overrides needed here anymore. */
+  body.dark-theme .topbar { background:var(--card); color:var(--text); border-color:var(--border); }
+  body.dark-theme input { color:var(--text) !important; }
+  body.dark-theme tr:hover td { background:#162238; }
+  body.dark-theme td, body.dark-theme th { border-color:var(--border); }
+  body.dark-theme .details-row { background:#0e1626; }
+  body.dark-theme .resource-stats > div, body.dark-theme .hardware-grid > div,
+  body.dark-theme .resource-big-row { background:#0e1626; }
+  .theme-toggle { width:34px;height:34px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);cursor:pointer;font-size:15px; }
+  .theme-toggle:hover { border-color:#64748b; }
+
+  /* ================= Fleet Endpoint 360 ================= */
+  .endpoint360-inline { margin-top:16px; border:1px solid var(--border); border-radius:12px; overflow:hidden; background:var(--card); box-shadow:0 1px 3px rgba(15,23,42,.05); }
+  .endpoint360-inline-head { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 16px; background:linear-gradient(90deg,rgba(37,99,235,.10),transparent); border-bottom:1px solid var(--border); }
+  .endpoint360-inline-title { font-size:15px; font-weight:700; display:flex; align-items:center; gap:7px; }
+  .endpoint360-inline-title::before { content:"\1F6E1"; font-size:13px; }
+  .endpoint360-inline-sub { color:var(--muted); font-size:11.5px; margin-top:2px; }
+  .endpoint360-live { display:flex; align-items:center; gap:7px; font-size:12px; font-weight:600; color:var(--muted); white-space:nowrap; }
+  .endpoint360-live.ok { color:var(--green); }
+  .endpoint360-live.bad { color:var(--red); }
+  .endpoint360-live.warn { color:var(--orange); }
+  .endpoint360-dot { width:8px;height:8px;border-radius:50%;background:#94a3b8;flex:0 0 auto; }
+  .endpoint360-dot.ok{background:var(--green)} .endpoint360-dot.bad{background:var(--red)} .endpoint360-dot.warn{background:var(--orange)}
+  .endpoint360-inline-body { padding:14px; }
+  .e360-summary { display:grid;grid-template-columns:minmax(200px,1.5fr) repeat(4,minmax(110px,1fr));gap:10px; align-items:stretch; }
+  .e360-score-card,.e360-mini { border:1px solid var(--border); border-radius:9px; padding:12px; background:var(--bg); min-width:0; }
+  .e360-score-card { display:flex;align-items:center;gap:10px; }
+  .e360-score-card > div:last-child { min-width:0; flex:1 1 auto; }
+  .e360-score { width:50px;height:50px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:15px;background:conic-gradient(var(--blue) 0deg,rgba(148,163,184,.18) 0deg);position:relative;flex:0 0 auto; }
+  .e360-score:after { content:"";position:absolute;inset:6px;border-radius:50%;background:var(--card); }
+  .e360-score span { position:relative;z-index:1; }
+  .e360-label { font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;overflow-wrap:break-word; }
+  .e360-value { font-size:14px;font-weight:750;margin-top:3px;line-height:1.25;overflow-wrap:break-word;white-space:normal; }
+  .e360-status { display:inline-block;margin-top:5px;font-size:10px;font-weight:700;padding:2px 7px;border-radius:99px;white-space:nowrap; }
+  .e360-ok { color:var(--green);background:var(--green-bg) }.e360-warn{color:var(--orange);background:var(--orange-bg)}.e360-bad{color:var(--red);background:var(--red-bg)}.e360-neutral{color:var(--muted);background:rgba(148,163,184,.10)}
+  .e360-grid { display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px; }
+  @media(max-width:900px){ .e360-summary{grid-template-columns:1fr 1fr;} }
+  @media(max-width:560px){ .e360-summary{grid-template-columns:1fr;} .e360-grid{grid-template-columns:1fr;} }
+  .e360-panel { border:1px solid var(--border);border-radius:9px;padding:12px;min-width:0; }
+  .e360-panel h5 { margin:0 0 9px;font-size:12px; }
+  .e360-kv { display:grid;grid-template-columns:1fr 1fr;gap:7px;font-size:11.5px; }
+  .e360-kv span:nth-child(odd){color:var(--muted)}
+  .e360-findings { margin:0;padding-left:17px;color:var(--muted);font-size:11.5px; }
+  .e360-findings li{margin:4px 0}.e360-note{font-size:10.5px;color:var(--muted);margin-top:10px;line-height:1.5}
+  .e360-actions { display:flex;gap:7px;align-items:center; }
+  .e360-run { font:inherit;font-size:11px;padding:6px 9px;border:1px solid var(--border);border-radius:7px;background:var(--card);color:var(--text);cursor:pointer; }
+  .e360-run.primary { background:var(--blue);border-color:var(--blue);color:#fff; }
+  .fleet-toolbar { display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px; }
+
+  /* ================= Endpoint 360 - normal console light UI ================= */
+  .ep360-wrap{background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:12px;padding:18px;font-size:14px;box-shadow:0 1px 2px rgba(15,23,42,.03)}
+  .ep360-header{display:flex;justify-content:space-between;gap:16px;align-items:flex-end;margin-bottom:16px;flex-wrap:wrap}
+  .ep360-title{font-size:18px;font-weight:700;color:var(--text);margin-bottom:3px}
+  .ep360-identity{color:var(--muted);font-size:12px}
+  .ep360-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .ep360-select,.ep360-input{height:36px;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:7px;padding:7px 10px;font:inherit;outline:none}
+  .ep360-select{min-width:290px;font-size:13px}
+  .ep360-input{width:180px;font-size:13px}
+  .ep360-select:focus,.ep360-input:focus{border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-bg)}
+  .ep360-btn{height:36px;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:7px;padding:7px 12px;font:inherit;cursor:pointer}
+  .ep360-btn:hover{border-color:var(--muted);background:var(--bg)}
+  .ep360-btn.primary{background:var(--blue);border-color:var(--blue);color:#fff;font-weight:600}
+  .ep360-btn.primary:hover{filter:brightness(0.92)}
+  .ep360-toggle{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:12px}
+  .ep360-switch{position:relative;display:inline-block;width:34px;height:19px}
+  .ep360-switch input{opacity:0;width:0;height:0}
+  .ep360-slider{position:absolute;cursor:pointer;inset:0;background:#cbd5e1;border-radius:20px;transition:.15s}
+  .ep360-slider::before{content:"";position:absolute;height:14px;width:14px;left:3px;top:2.5px;background:#fff;border-radius:50%;transition:.15s;box-shadow:0 1px 2px rgba(0,0,0,.15)}
+  .ep360-switch input:checked + .ep360-slider{background:var(--green)}
+  .ep360-switch input:checked + .ep360-slider::before{transform:translateX(15px)}
+  .ep360-range{display:flex;gap:2px}
+  .ep360-range button{font-family:inherit;font-size:11px;font-weight:600;padding:6px 9px;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--muted);cursor:pointer}
+  .ep360-range button.active{background:var(--blue);border-color:var(--blue);color:#fff}
+  .ep360-grid{display:grid;gap:14px}
+  .ep360-cards6{grid-template-columns:minmax(180px,1.6fr) repeat(5,minmax(120px,1fr))}
+  .ep360-three{grid-template-columns:1.05fr 1fr 1.45fr}
+  .ep360-perf{grid-template-columns:repeat(3,1fr)}
+  .ep360-two{grid-template-columns:1fr 1fr}
+  .ep360-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:15px;min-width:0}
+  .ep360-label{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;display:flex;align-items:center;gap:6px}
+  .ep360-value{font-size:23px;font-weight:700;margin-top:6px;color:var(--text);overflow-wrap:break-word}
+  .ep360-status{display:inline-block;padding:3px 9px;border-radius:20px;font-size:10.5px;font-weight:700;margin-top:7px;white-space:nowrap}
+  .ep360-healthy{background:var(--green-bg);color:var(--green)}
+  .ep360-degraded{background:var(--orange-bg);color:var(--orange)}
+  .ep360-poor{background:var(--red-bg);color:var(--red)}
+  .ep360-neutral{background:var(--neutral-bg);color:var(--muted)}
+  .ep360-gauge-wrap{display:flex;align-items:center;flex-wrap:wrap;gap:10px 13px;margin-top:8px;min-width:0}
+  .ep360-gauge{width:58px;height:58px;border-radius:50%;display:grid;place-items:center;position:relative;flex:0 0 auto}
+  .ep360-gauge::before{content:"";position:absolute;inset:7px;border-radius:50%;background:var(--card)}
+  .ep360-gauge span{position:relative;font-size:14px;font-weight:800;color:var(--text)}
+  .ep360-section-title{font-weight:700;margin-bottom:11px;display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--text)}
+  .ep360-sub{color:var(--muted);font-weight:400;font-size:11.5px}
+  .ep360-kv{display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12.5px;color:var(--text)}
+  .ep360-kv div:nth-child(odd){color:var(--muted)}
+  .ep360-chart-wrap{margin-top:12px;height:78px}
+  .ep360-findings{display:flex;flex-direction:column;gap:7px;max-height:250px;overflow:auto}
+  .ep360-finding{padding:9px 10px;border-left:3px solid var(--orange);background:var(--orange-bg);border-radius:5px;font-size:12px;color:var(--text)}
+  .ep360-finding.high{border-left-color:var(--red);background:var(--red-bg)}.ep360-finding.medium{border-left-color:var(--orange);background:var(--orange-bg)}.ep360-finding.low{border-left-color:var(--blue);background:var(--blue-bg)}
+  .ep360-path-wrap{overflow:auto;border:1px solid var(--border);border-radius:8px;background:var(--bg);padding:10px}
+  .ep360-path{display:flex;align-items:center;gap:7px;min-width:max-content;padding:4px 2px}
+  .ep360-node{min-width:100px;text-align:center;flex:0 0 auto}.ep360-circle{width:30px;height:30px;border-radius:50%;margin:auto;background:var(--blue-bg);color:var(--blue);display:grid;place-items:center;font-weight:700;font-size:11px;border:1px solid var(--blue-bg)}
+  .ep360-line{height:2px;background:var(--border);width:28px;min-width:28px;position:relative}.ep360-line::after{content:"";position:absolute;right:-1px;top:-3px;border-left:6px solid var(--muted);border-top:4px solid transparent;border-bottom:4px solid transparent}
+  .ep360-node small{color:var(--muted);word-break:break-word;font-size:10.5px}.ep360-node b{font-size:11.5px;color:var(--text)}
+  .ep360-trace-table{width:100%;border-collapse:collapse;margin-top:10px;font-size:11.5px}.ep360-trace-table th,.ep360-trace-table td{padding:7px 8px;border-bottom:1px solid var(--border);text-align:left;color:var(--text)}.ep360-trace-table th{font-size:10px;text-transform:uppercase;color:var(--muted);font-weight:600}.ep360-trace-table tr:last-child td{border-bottom:0}
+  .ep360-trace-good{color:var(--green);font-weight:700}.ep360-trace-warn{color:var(--orange);font-weight:700}.ep360-trace-bad{color:var(--red);font-weight:700}
+  .ep360-pill-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.ep360-pill{font-size:10.5px;font-weight:700;padding:3px 8px;border-radius:20px}
+  .ep360-assessment{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:11px;margin-top:10px}.ep360-assessment-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.ep360-assessment-item span{display:block;color:var(--muted);font-size:10px;text-transform:uppercase}.ep360-assessment-item strong{display:block;margin-top:2px;font-size:12.5px;color:var(--text)}
+  .ep360-bottom-bar{margin-top:14px;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:13px 15px;display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}.ep360-rec{font-size:12.5px;color:var(--text)}
+  .ep360-loading{padding:18px;text-align:center;color:var(--muted);border:1px dashed var(--border);border-radius:8px;background:var(--bg)}
+  @media(max-width:1250px){.ep360-cards6{grid-template-columns:repeat(3,1fr)}.ep360-three,.ep360-perf{grid-template-columns:1fr}.ep360-two{grid-template-columns:1fr}.ep360-assessment-grid{grid-template-columns:1fr 1fr}}
+  @media(max-width:700px){.ep360-cards6{grid-template-columns:1fr 1fr}.ep360-select{min-width:220px}.ep360-assessment-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <div class="sidebar">
+    <div class="brand" data-goto="dashboard" style="cursor:pointer">
+      <div class="brand-icon">VE</div>
+      <div class="brand-name">VE Compliance<br>Engine</div>
+    </div>
+    <ul class="nav" id="nav-list">
+      <li><a data-page="dashboard" class="active"><span class="icon">&#9635;</span> Dashboard</a></li>
+      <li><a data-page="assessments"><span class="icon">&#10003;</span> Assessments</a></li>
+      <li><a data-page="applications"><span class="icon">&#128190;</span> Applications</a></li>
+      <li><a data-page="remediation"><span class="icon">&#128295;</span> App Remediation</a></li>
+      <li><a data-page="endpoint-360"><span class="icon">&#128737;</span> Endpoint 360</a></li>
+      <li><a data-page="endpoints"><span class="icon">&#128421;</span> Endpoints</a></li>
+      <li><a data-page="ports"><span class="icon">&#128268;</span> Ports</a></li>
+      <li class="nav-label">Administration</li>
+      <li><a data-page="administration"><span class="icon">&#9881;</span> System Health</a></li>
+      <li><a data-page="policies"><span class="icon">&#128196;</span> Policies</a></li>
+      <li><a data-page="compliance"><span class="icon">&#9989;</span> Compliance</a></li>
+      <li><a data-page="reports"><span class="icon">&#128202;</span> Reports</a></li>
+      <li><a data-page="settings"><span class="icon">&#9881;</span> Settings</a></li>
+      <li><a data-page="auditlogs"><span class="icon">&#128220;</span> Audit Logs</a></li>
+    </ul>
+    <div class="sidebar-footer">
+      <div class="avatar">A</div>
+      <div>
+        <div class="who-name">admin</div>
+        <div class="who-role">Local console</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="topbar">
+      <div class="titles">
+        <h1 id="page-title">Dashboard</h1>
+        <div class="subtitle" id="page-subtitle">Overview of posture assessment status</div>
+      </div>
+      <div class="spacer"></div>
+      <div class="search-box"><span>&#128269;</span><input type="text" id="global-search" placeholder="Search endpoints, IP, MAC..."></div>
+      <button class="theme-toggle" id="theme-toggle" title="Toggle dark theme">&#9790;</button><div class="bell">&#128276;</div>
+    </div>
+
+    <div class="content">
+
+      <!-- ================= DASHBOARD ================= -->
+      <div class="page active" id="page-dashboard">
+        <div class="grid grid-6" id="stat-cards"></div>
+
+        <div class="grid grid-2" style="margin-top:16px;">
+          <div class="card">
+            <div class="card-title"><span>Posture Overview</span><span class="score-pill" id="score-pill"></span></div>
+            <div style="display:flex; align-items:center; gap:20px;">
+              <div style="position:relative; width:150px; height:150px; flex:0 0 auto;">
+                <canvas id="donut-chart"></canvas>
+              </div>
+              <div style="flex:1;" id="donut-legend"></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">
+              <span>Compliance Trend</span>
+              <span class="range-select" id="trend-range">
+                <button data-days="1">24h</button>
+                <button data-days="7" class="active">7d</button>
+                <button data-days="30">30d</button>
+                <button data-days="90">90d</button>
+              </span>
+            </div>
+            <canvas id="trend-chart" height="150"></canvas>
+            <div class="trend-note" id="trend-note"></div>
+          </div>
+        </div>
+
+        <div class="grid grid-3" style="margin-top:16px;">
+          <div class="card">
+            <div class="card-title"><span>Recent Assessments</span><span class="link" data-goto="assessments">View all</span></div>
+            <table>
+              <thead><tr><th>Endpoint</th><th>Status</th><th>Time</th></tr></thead>
+              <tbody id="recent-assessments-body"></tbody>
+            </table>
+          </div>
+          <div class="card">
+            <div class="card-title"><span>Compliance by Category</span></div>
+            <div id="category-bars"></div>
+          </div>
+          <div class="card">
+            <div class="card-title"><span>Installed Applications</span><span class="link" data-goto="applications">View all</span></div>
+            <div id="dash-apps-summary"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================= ASSESSMENTS ================= -->
+      <div class="page" id="page-assessments">
+        <div class="card" id="needs-attention-card" style="margin-bottom:16px; display:none;">
+          <div class="card-title"><span>Needs attention</span><span id="na-count" style="font-size:12px; color:var(--muted); font-weight:500;"></span></div>
+          <div id="na-list"></div>
+        </div>
+        <div class="card">
+          <div class="card-title"><span>All assessments</span></div>
+          <table>
+            <thead><tr><th>Endpoint</th><th>MAC</th><th>Status</th><th>Detail</th><th>Time</th></tr></thead>
+            <tbody id="assessments-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ================= APPLICATIONS ================= -->
+      <div class="page" id="page-applications">
+        <div class="card">
+          <div class="card-title">
+            <span>Installed applications <span id="apps-total" style="color:var(--muted); font-weight:500;"></span></span>
+            <span class="search-box" style="width:260px;"><span>&#128269;</span><input type="text" id="apps-search" placeholder="Search name or publisher..."></span>
+          </div>
+          <table>
+            <thead><tr><th>Application</th><th>Version</th><th>Publisher</th><th>Endpoint</th></tr></thead>
+            <tbody id="applications-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ================= APPLICATION REMEDIATION ================= -->
+      <div class="page" id="page-remediation">
+        <div class="grid grid-5" id="remediation-stat-cards"></div>
+
+        <div class="grid grid-2" style="margin-top:16px;">
+          <div class="card">
+            <div class="card-title"><span>Compliance Overview</span></div>
+            <div style="display:flex; align-items:center; gap:20px;">
+              <div style="position:relative; width:150px; height:150px; flex:0 0 auto;">
+                <canvas id="remediation-donut-chart"></canvas>
+              </div>
+              <div style="flex:1;" id="remediation-donut-legend"></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title"><span>How remediation works</span></div>
+            <div style="font-size:12.5px; color:var(--muted); line-height:1.7;">
+              Applications are discovered from the posture checks already run against each
+              endpoint. Move an application to Business Relevant or Business Irrelevant,
+              then select the applications you want removed. Uninstall Selected removes them
+              remotely, over PowerShell Remoting, from every endpoint that currently reports
+              the application installed. Protected applications, such as security agents,
+              OS components, and drivers, cannot be uninstalled from this console.
+            </div>
+            <div id="remediation-cred-status" style="margin-top:12px;font-size:12px;padding:9px 11px;border-radius:7px;"></div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:16px;">
+          <div class="card-title">
+            <span>Endpoints <span id="remediation-endpoints-total" style="color:var(--muted); font-weight:500;"></span></span>
+            <span class="search-box" style="width:240px;"><span>&#128269;</span><input type="text" id="remediation-search" placeholder="Search hostname, IP, or MAC..."></span>
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:12px;">Select an endpoint to see its installed applications and run remediation against it.</div>
+          <table>
+            <thead><tr><th>Hostname</th><th>IP</th><th>MAC</th><th>OS</th><th>Applications</th></tr></thead>
+            <tbody id="remediation-endpoints-body"></tbody>
+          </table>
+        </div>
+
+        <div class="card" style="margin-top:16px;">
+          <div class="card-title"><span>Remediation audit log</span></div>
+          <table>
+            <thead><tr><th>Time</th><th>Action</th><th>Application</th><th>Endpoint IP</th><th>Detail</th></tr></thead>
+            <tbody id="remediation-audit-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ================= ENDPOINT 360 ================= -->
+      <div class="page" id="page-endpoint-360">
+        <div class="ep360-wrap">
+          <div class="ep360-header">
+            <div>
+              <div class="ep360-title">Endpoint 360</div>
+              <div class="ep360-identity" id="ep360-identity">Select an endpoint to view its assessment and run diagnostics.</div>
+            </div>
+            <div class="ep360-actions">
+              <select id="ep360-endpoint-select" class="ep360-select" aria-label="Choose endpoint">
+                <option value="">Choose an endpoint...</option>
+              </select>
+              <input id="ep360-target" class="ep360-input" value="outlook.office.com" title="Application target" placeholder="Application target">
+              <span class="ep360-toggle"><span>Auto Refresh</span>
+                <label class="ep360-switch"><input type="checkbox" id="ep360-autorefresh" checked><span class="ep360-slider"></span></label>
+              </span>
+              <span class="ep360-range" id="ep360-range">
+                <button data-mins="15" class="active">15m</button><button data-mins="60">1h</button><button data-mins="1440">24h</button><button data-mins="10080">7d</button>
+              </span>
+              <button class="ep360-btn" id="ep360-refresh-btn">&#8635; Refresh</button>
+              <button class="ep360-btn primary" id="ep360-diag-btn">&#9658; Run Diagnostic</button>
+            </div>
+          </div>
+
+          <div class="ep360-grid ep360-cards6">
+            <div class="ep360-card"><div class="ep360-label">Experience Score</div><div class="ep360-gauge-wrap"><div class="ep360-gauge" id="ep360-gauge"><span id="ep360-score">--</span></div><span id="ep360-overall" class="ep360-status ep360-neutral">--</span></div></div>
+            <div class="ep360-card"><div class="ep360-label">Root Cause</div><div class="ep360-value" id="ep360-root" style="font-size:17px">--</div><span id="ep360-rootStatus" class="ep360-status ep360-neutral">--</span></div>
+            <div class="ep360-card"><div class="ep360-label">Endpoint Reachability</div><div class="ep360-value" id="ep360-gateway">--</div><span id="ep360-gatewayStatus" class="ep360-status ep360-neutral">--</span></div>
+            <div class="ep360-card"><div class="ep360-label">DNS</div><div class="ep360-value" id="ep360-internet">--</div><span id="ep360-internetStatus" class="ep360-status ep360-neutral">--</span></div>
+            <div class="ep360-card"><div class="ep360-label">Application</div><div class="ep360-value" id="ep360-app">--</div><span id="ep360-appStatus" class="ep360-status ep360-neutral">--</span></div>
+            <div class="ep360-card"><div class="ep360-label">Latest Assessment</div><div class="ep360-value" id="ep360-assessStatus" style="font-size:17px">--</div><div class="ep360-pill-row"><span class="ep360-pill" id="ep360-checkCount">-- checks</span><span class="ep360-pill" id="ep360-lastSeen">--</span></div></div>
+          </div>
+
+          <div class="ep360-card" style="margin-top:14px" id="ep360-assessment-card">
+            <div class="ep360-section-title">Endpoint Assessment <span class="ep360-sub" id="ep360-assessment-meta" style="margin-left:auto"></span></div>
+            <div class="ep360-assessment-grid" id="ep360-assessment-grid"></div>
+            <div class="ep360-findings" id="ep360-assessment-findings" style="margin-top:10px"></div>
+          </div>
+
+          <div class="ep360-grid ep360-three" style="margin-top:14px">
+            <div class="ep360-card"><div class="ep360-section-title">Endpoint Health</div><div class="ep360-kv" id="ep360-endpoint"></div></div>
+            <div class="ep360-card"><div class="ep360-section-title">Network / DNS</div><div class="ep360-kv" id="ep360-wifi"></div></div>
+            <div class="ep360-card"><div class="ep360-section-title">Network Path (Traceroute)</div><div class="ep360-path-wrap" id="ep360-path"><div class="ep360-loading">Run a diagnostic to trace the selected endpoint.</div></div></div>
+          </div>
+
+          <div class="ep360-grid ep360-perf" style="margin-top:14px">
+            <div class="ep360-card"><div class="ep360-section-title">DNS Performance</div><div class="ep360-kv" id="ep360-dnsPerf"></div><div class="ep360-chart-wrap"><canvas id="ep360-dnsChart" height="78"></canvas></div></div>
+            <div class="ep360-card"><div class="ep360-section-title">Endpoint Network Performance</div><div class="ep360-kv" id="ep360-netPerf"></div><div class="ep360-chart-wrap"><canvas id="ep360-netChart" height="78"></canvas></div></div>
+            <div class="ep360-card"><div class="ep360-section-title">Application Performance</div><div class="ep360-kv" id="ep360-appPerf"></div><div class="ep360-chart-wrap"><canvas id="ep360-appChart" height="78"></canvas></div></div>
+          </div>
+
+          <div class="ep360-grid ep360-two" style="margin-top:14px">
+            <div class="ep360-card"><div class="ep360-section-title">Root Cause Evidence</div><div class="ep360-findings" id="ep360-findings"></div></div>
+            <div class="ep360-card"><div class="ep360-section-title">Traceroute Details <span class="ep360-sub" id="ep360-traceMeta" style="margin-left:auto"></span></div><div id="ep360-traceTable"></div></div>
+          </div>
+
+          <div class="ep360-bottom-bar">
+            <div class="ep360-rec" id="ep360-recommendation">Choose an endpoint and run a diagnostic.</div>
+            <div class="ep360-actions"><button class="ep360-btn" id="ep360-export-btn">Export Assessment</button><button class="ep360-btn primary" id="ep360-diag-btn2">&#9658; Run Diagnostic</button></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================= ENDPOINTS ================= -->
+      <div class="page" id="page-endpoints">
+        <div class="card">
+          <div class="card-title"><span>Endpoint inventory</span><span id="endpoint-total" style="color:var(--muted);font-weight:500"></span></div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:12px;">Select an endpoint to expand its assessment and Endpoint 360 diagnostics.</div>
+          <table>
+            <thead><tr><th>Hostname</th><th>IP</th><th>MAC</th><th>OS</th><th>Status</th><th>Last seen</th></tr></thead>
+            <tbody id="endpoints-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ================= PORTS ================= -->
+      <div class="page" id="page-ports">
+        <div class="card">
+          <div class="card-title">
+            <span>Listening ports <span id="ports-total" style="color:var(--muted); font-weight:500;"></span></span>
+            <span class="search-box" style="width:260px;"><span>&#128269;</span><input type="text" id="ports-search" placeholder="Search process, host, or IP..."></span>
+          </div>
+          <table>
+            <thead><tr><th></th><th>Endpoint</th><th>IP</th><th>MAC</th><th>Open Ports</th></tr></thead>
+            <tbody id="ports-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ================= ADMINISTRATION / SYSTEM HEALTH ================= -->
+      <div class="page" id="page-administration">
+        <div class="card">
+          <div class="card-title"><span>System Health</span></div>
+          <div id="admin-health-list"></div>
+        </div>
+      </div>
+
+      <!-- ================= COMING SOON PAGES ================= -->
+      <div class="page" id="page-policies"></div>
+      <div class="page" id="page-compliance"></div>
+      <div class="page" id="page-reports"></div>
+      <div class="page" id="page-settings"></div>
+      <div class="page" id="page-auditlogs">
+        <div class="card">
+          <div class="card-title">
+            <span>ISE action audit trail <span id="auditlogs-total" style="color:var(--muted); font-weight:500;"></span></span>
+            <span class="search-box" style="width:240px;"><span>&#128269;</span><input type="text" id="auditlogs-search" placeholder="Search MAC, action, detail..."></span>
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:12px;">
+            Every Share Posture, Restrict, and Clear Restriction action taken from this console - success or failure, always logged, per the platform's enforcement model (nothing here happens automatically).
+          </div>
+          <table>
+            <thead><tr><th>Time</th><th>MAC</th><th>Action</th><th>Operator</th><th>Result</th><th>Detail</th></tr></thead>
+            <tbody id="auditlogs-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+const PAGE_META = {
+  dashboard:     { title: "Dashboard",      subtitle: "Overview of posture assessment status" },
+  assessments:   { title: "Assessments",    subtitle: "Every posture check this console has run" },
+  applications:  { title: "Applications",   subtitle: "Installed software discovered across all endpoints" },
+  remediation:   { title: "Application Remediation", subtitle: "Classify, select, and remotely uninstall applications across the fleet" },
+  "endpoint-360":{ title: "Endpoint 360",    subtitle: "Fleet health and per-endpoint diagnostics" },
+  endpoints:     { title: "Endpoints",      subtitle: "Devices this console has seen, checked or not" },
+  ports:         { title: "Ports",          subtitle: "Listening TCP ports discovered across all endpoints" },
+  administration:{ title: "System Health",  subtitle: "Operational status of this console and its ISE connection" },
+  policies:      { title: "Policies",       subtitle: "Read-only view into ISE's Authorization Policy" },
+  compliance:    { title: "Compliance",     subtitle: "Compliance breakdown across the fleet" },
+  reports:       { title: "Reports",        subtitle: "Exportable compliance reports" },
+  settings:      { title: "Settings",       subtitle: "Configure this console without editing env vars" },
+  auditlogs:     { title: "Audit Logs",     subtitle: "Who changed what, separate from check results" },
+};
+
+const SOON_CONTENT = {
+  policies: { icon: "&#128196;", title: "Policies", desc: "This will show your ISE Authorization Policy rules- read-only, pulled live via the ISE ERS API- so you can see what CompliantDevice/NonCompliant rules are doing without opening the ISE admin GUI. Not built yet." },
+  compliance: { icon: "&#9989;", title: "Compliance", desc: "A deeper compliance breakdown than the Dashboard's summary- per-policy, per-device-type views. Most of this becomes real once Anti-Virus, OS Patch, Disk Encryption, Security Settings, and App Control checks exist. Not built yet." },
+  reports: { icon: "&#128202;", title: "Reports", desc: "PDF/CSV export of assessment history and compliance summaries, for sharing outside this console. Not built yet." },
+  settings: { icon: "&#9881;", title: "Settings", desc: "Edit ISE_HOST, poll intervals, and other configuration from here instead of environment variables. Not built yet." },
+};
+
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// Backend timestamps are stored/returned in UTC. These convert them to
+// whatever timezone the browser itself is running in, so "now" in the
+// UI actually matches the viewer's wall clock instead of showing raw
+// UTC (which looks "wrong" by the local UTC offset).
+function toLocalTime(isoUtc) {
+  if (!isoUtc) return '';
+  const d = new Date(isoUtc);
+  if (isNaN(d.getTime())) return isoUtc;
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+function toLocalDateTime(isoUtc) {
+  if (!isoUtc) return '';
+  const d = new Date(isoUtc);
+  if (isNaN(d.getTime())) return isoUtc;
+  return d.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+}
+function toLocalHourLabel(isoUtc) {
+  const d = new Date(isoUtc);
+  if (isNaN(d.getTime())) return isoUtc;
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+function statusClass(status) {
+  return 'badge-' + String(status || 'unknown').toLowerCase().replace(/\s+/g, '-');
+}
+async function fetchJSON(url, opts = {}) {
+  const res = await fetch(url, { ...opts, cache: 'no-store' });
+  return res.json();
+}
+
+// ---- navigation ----
+function goToPage(name, options = {}) {
+  if (!document.getElementById('page-' + name)) name = 'dashboard';
+  if (!options.fromHash) { const nextHash = '#' + name; if (window.location.hash !== nextHash) history.replaceState(null, '', nextHash); }
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  document.querySelectorAll('.nav a').forEach(a => a.classList.toggle('active', a.dataset.page === name));
+  const meta = PAGE_META[name];
+  document.getElementById('page-title').textContent = meta.title;
+  document.getElementById('page-subtitle').textContent = meta.subtitle;
+
+  if (SOON_CONTENT[name] && !document.getElementById('page-' + name).dataset.rendered) {
+    const c = SOON_CONTENT[name];
+    document.getElementById('page-' + name).innerHTML = `
+      <div class="soon-wrap"><div class="soon-card">
+        <div class="soon-icon">${c.icon}</div>
+        <div class="soon-title">${esc(c.title)}</div>
+        <div class="soon-desc">${esc(c.desc)}</div>
+        <div class="soon-badge">Coming soon</div>
+      </div></div>`;
+    document.getElementById('page-' + name).dataset.rendered = '1';
+  }
+
+  if (name === 'dashboard') loadDashboard();
+  if (name === 'assessments') loadAssessments();
+  if (name === 'applications') loadApplications();
+  if (name === 'remediation') loadRemediation();
+  if (name === 'endpoints') loadEndpoints();
+  if (name === 'ports') loadPortsPage();
+  if (name === 'endpoint-360') { loadEndpoint360Choices(); if (document.getElementById('ep360-endpoint-select').value) loadEndpoint360(); }
+  if (name === 'administration') loadAdministration();
+  if (name === 'auditlogs') loadAuditLogs();
+}
+
+document.getElementById('nav-list').addEventListener('click', (e) => {
+  const a = e.target.closest('a[data-page]');
+  if (a) goToPage(a.dataset.page);
+});
+document.addEventListener('click', (e) => {
+  const g = e.target.closest('[data-goto]');
+  if (g) goToPage(g.dataset.goto);
+});
+
+// ---- global search: filters whichever table is on screen ----
+// The various load*() functions below re-render their tables' innerHTML on
+// every poll (every 6s) and on every page switch, which wipes out any
+// display:none the filter previously applied. So instead of a one-shot
+// filter, we keep the current search term in a variable and call
+// applyGlobalSearch() again at the end of every render - that way the
+// filter survives re-renders instead of being cleared by the next poll.
+//
+// IMPORTANT: accordion detail panels (tr.details-row - the expanded
+// endpoint/port/remediation detail rows) are NOT owned by search. Their
+// open/closed state is tracked separately (expandedEndpointKeys,
+// expandedPortKeys, remediationExpandedMacs) and toggled only by the
+// user clicking a row. Search must never set a details-row to display:''
+// itself - doing so would force every accordion open on every render.
+// Search only ever hides a details-row, and only when its own matching
+// row (the entity it belongs to) has been filtered out - it never
+// re-shows one.
+let globalSearchTerm = '';
+function applyGlobalSearch() {
+  const term = globalSearchTerm;
+
+  document.querySelectorAll('.page.active tbody tr').forEach(row => {
+    if (row.classList.contains('details-row')) return; // handled below, never forced open here
+
+    if (!term) {
+      row.style.display = '';
+    } else {
+      row.style.display = row.textContent.toLowerCase().includes(term) ? '' : 'none';
+    }
+  });
+
+  // If a row's matching entity got filtered out by search, hide its detail
+  // panel too (so a hidden endpoint's expanded details don't linger visible).
+  // Never touch a details-row whose main row is still visible - that row's
+  // open/closed state belongs entirely to the click handler, not to search.
+  document.querySelectorAll('.page.active tbody tr.details-row').forEach(detailsRow => {
+    const mainRow = detailsRow.previousElementSibling;
+    if (mainRow && mainRow.style.display === 'none') {
+      detailsRow.style.display = 'none';
+    }
+  });
+}
+document.getElementById('global-search').addEventListener('input', (e) => {
+  globalSearchTerm = e.target.value.trim().toLowerCase();
+  applyGlobalSearch();
+});
+
+// ---- charts (created once, updated in place) ----
+let donutChart = null, trendChart = null;
+function renderDonut(summary) {
+  const ctx = document.getElementById('donut-chart');
+  const data = [summary.compliant, summary.non_compliant, summary.at_risk];
+  if (donutChart) { donutChart.data.datasets[0].data = data; donutChart.update(); return; }
+  donutChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: { labels: ['Compliant', 'Non-Compliant', 'At Risk'], datasets: [{ data, backgroundColor: ['#16a34a', '#f97316', '#dc2626'], borderWidth: 0 }] },
+    options: { cutout: '72%', plugins: { legend: { display: false }, tooltip: { enabled: true } } },
+  });
+}
+
+function renderTrend(trend) {
+  const ctx = document.getElementById('trend-chart');
+  // Daily labels come back as "YYYY-MM-DD" -> shorten to "MM-DD".
+  // Hourly labels (24h view) come back as full UTC ISO timestamps -
+  // convert each to the browser's local hour so the chart's x-axis
+  // matches the viewer's actual clock, not the server's UTC time.
+  const labels = trend.granularity === 'hourly' ? trend.days.map(toLocalHourLabel) : trend.days.map(d => d.slice(5));
+  const compliant = trend.buckets.map(b => b.compliant);
+  const nonCompliant = trend.buckets.map(b => b.non_compliant);
+  const atRisk = trend.buckets.map(b => b.at_risk);
+  if (trendChart) {
+    trendChart.data.labels = labels;
+    trendChart.data.datasets[0].data = compliant;
+    trendChart.data.datasets[1].data = nonCompliant;
+    trendChart.data.datasets[2].data = atRisk;
+    trendChart.update();
+    return;
+  }
+  trendChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Compliant', data: compliant, borderColor: '#16a34a', backgroundColor: '#16a34a', tension: .35, pointRadius: 3 },
+        { label: 'Non-Compliant', data: nonCompliant, borderColor: '#f97316', backgroundColor: '#f97316', tension: .35, pointRadius: 3 },
+        { label: 'At Risk', data: atRisk, borderColor: '#dc2626', backgroundColor: '#dc2626', tension: .35, pointRadius: 3 },
+      ],
+    },
+    options: { scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }, plugins: { legend: { position: 'bottom', labels: { boxWidth: 8, usePointStyle: true } } } },
+  });
+}
+
+// ---- Dashboard page ----
+let trendDays = 7;
+
+function osIcon(os) {
+  const s = (os || '').toLowerCase();
+  if (s.includes('windows')) return '&#128421;';
+  if (s.includes('mac') || s.includes('darwin')) return '&#63743;';
+  if (s.includes('linux') || s.includes('ubuntu')) return '&#128039;';
+  if (s.includes('android')) return '&#129302;';
+  return '&#128421;';
+}
+
+async function loadDashboard() {
+  const [summary, trend, categories, appsSummary, recent] = await Promise.all([
+    fetchJSON('/api/dashboard/summary'),
+    fetchJSON('/api/dashboard/trend?days=' + trendDays),
+    fetchJSON('/api/dashboard/categories'),
+    fetchJSON('/api/v1/applications'),
+    fetchJSON('/api/results?limit=5'),
+  ]);
+
+  // Every section below is independent- if Chart.js fails to load
+  // (e.g. an external CDN blocked by a corporate proxy/firewall, which
+  // is a real possibility for a tool like this), that failure stays
+  // contained to the two chart widgets instead of blanking the whole
+  // dashboard. Each section gets real data or a clear fallback, never
+  // a silent gap.
+
+  try {
+    const cards = [
+      { label: 'Total Endpoints', value: summary.total_endpoints, icon: '&#128421;', color: 'blue', goto: 'endpoints' },
+      { label: 'Compliant', value: summary.compliant, icon: '&#10003;', color: 'green' },
+      { label: 'Non-Compliant', value: summary.non_compliant, icon: '&#9888;', color: 'orange' },
+      { label: 'At Risk', value: summary.at_risk, icon: '&#9737;', color: 'red' },
+      { label: 'Not Connected', value: summary.not_connected ?? 0, icon: '&#128268;', color: 'purple', goto: 'endpoints' },
+      { label: 'Assessments Today', value: summary.assessments_today, icon: '&#9635;', color: 'blue', goto: 'assessments' },
+    ];
+    document.getElementById('stat-cards').innerHTML = cards.map(c => `
+      <div class="card stat-card${c.goto ? ' clickable' : ''}"${c.goto ? ` data-goto="${c.goto}"` : ''}>
+        <div class="stat-icon" style="background:var(--${c.color}-bg); color:var(--${c.color});">${c.icon}</div>
+        <div><div class="stat-label">${c.label}</div><div class="stat-value">${c.value}</div></div>
+      </div>`).join('');
+  } catch (err) { console.error('stat cards failed:', err); }
+
+  try {
+    document.getElementById('score-pill').textContent =
+      summary.compliance_score !== null && summary.compliance_score !== undefined
+        ? summary.compliance_score + '/100'
+        : 'No data yet';
+  } catch (err) { console.error('score pill failed:', err); }
+
+  try {
+    if (typeof Chart === 'undefined') throw new Error('Chart.js did not load');
+    renderDonut(summary);
+  } catch (err) {
+    console.error('donut chart failed:', err);
+    document.getElementById('donut-chart').closest('div').innerHTML =
+      '<div class="empty">Chart library failed to load (blocked by network/proxy?). Numbers are still accurate in the legend and stat cards above.</div>';
+  }
+
+  try {
+    const total = summary.total_endpoints || 1;
+    const legendRows = [
+      ['Compliant', '#16a34a', summary.compliant],
+      ['Non-Compliant', '#f97316', summary.non_compliant],
+      ['At Risk', '#dc2626', summary.at_risk],
+    ];
+    document.getElementById('donut-legend').innerHTML = legendRows.map(([label, color, n]) => `
+      <div class="legend-item"><span class="legend-dot" style="background:${color}"></span>${label}
+        <span class="n">${n}</span><span class="pct">${Math.round((n / total) * 100)}%</span></div>`).join('');
+  } catch (err) { console.error('donut legend failed:', err); }
+
+  try {
+    if (typeof Chart === 'undefined') throw new Error('Chart.js did not load');
+    renderTrend(trend);
+    const hasHistory = trend.buckets.some(b => b.compliant + b.non_compliant + b.at_risk > 0);
+    const emptyMsg = trend.granularity === 'hourly'
+      ? 'No assessments in the last 24 hours yet - this fills in as checks run.'
+      : 'No assessment history yet for this range - this fills in as checks run over the next few days.';
+    document.getElementById('trend-note').textContent = hasHistory ? 'Based on real assessment history.' : emptyMsg;
+  } catch (err) {
+    console.error('trend chart failed:', err);
+    document.getElementById('trend-chart').closest('.card').querySelector('canvas').outerHTML =
+      '<div class="empty">Chart library failed to load (blocked by network/proxy?).</div>';
+  }
+
+  try {
+    document.getElementById('category-bars').innerHTML = categories.categories.map(c => `
+      <div class="bar-row">
+        <div class="bar-row-top">
+          <span>${esc(c.name)}${c.implemented ? '' : '<span class="not-impl-tag">Not yet implemented</span>'}</span>
+          <span>${c.implemented && c.percent !== null ? c.percent + '%' : (c.implemented ? 'No data yet' : '—')}</span>
+        </div>
+        <div class="bar-track"><div class="bar-fill" style="width:${c.implemented && c.percent !== null ? c.percent : 0}%; background:${c.implemented ? (c.percent >= 80 ? '#16a34a' : '#f97316') : '#d1d5db'};"></div></div>
+      </div>`).join('');
+  } catch (err) { console.error('category bars failed:', err); }
+
+  try {
+    const apps = appsSummary.applications || [];
+    const el = document.getElementById('dash-apps-summary');
+    if (!apps.length) {
+      el.innerHTML = '<div class="empty">No applications discovered yet. This fills in as endpoints are checked.</div>';
+    } else {
+      const publisherCounts = {};
+      apps.forEach(a => {
+        const p = a.publisher || 'Unknown publisher';
+        publisherCounts[p] = (publisherCounts[p] || 0) + 1;
+      });
+      const topPublishers = Object.entries(publisherCounts).sort((a, b) => b[1] - a[1]).slice(0, 5);
+      const total = apps.length;
+      el.innerHTML = `
+        <div class="health-row" style="padding-top:0;">
+          <span class="health-name" style="font-weight:600;">Total applications discovered</span>
+          <span class="health-tag ok">${total}</span>
+        </div>` +
+        topPublishers.map(([name, n]) => `
+          <div class="health-row">
+            <span class="health-dot" style="background:#2563eb"></span>
+            <span class="health-name">${esc(name)}</span>
+            <span class="health-tag soon">${n} app${n === 1 ? '' : 's'}</span>
+          </div>`).join('');
+    }
+  } catch (err) { console.error('applications summary failed:', err); }
+
+  try {
+    document.getElementById('recent-assessments-body').innerHTML = recent.results.length
+      ? recent.results.map(r => `
+        <tr><td><span style="margin-right:6px;opacity:.55">${osIcon(r.os)}</span>${esc(r.computer || r.ip)}</td>
+        <td><span class="badge ${statusClass(r.status)}">${esc(r.status || 'ERROR')}</span></td>
+        <td>${esc(toLocalTime(r.timestamp) || r.time)}</td></tr>`).join('')
+      : '<tr><td colspan="3" class="empty">Nothing checked yet.</td></tr>';
+  } catch (err) { console.error('recent assessments failed:', err); }
+
+  applyGlobalSearch();
+}
+
+document.getElementById('trend-range').addEventListener('click', (e) => {
+  const days = e.target.dataset.days;
+  if (!days) return;
+  trendDays = parseInt(days, 10);
+  document.querySelectorAll('#trend-range button').forEach(b => b.classList.toggle('active', b.dataset.days === days));
+  loadDashboard();
+});
+
+// ---- Assessments page (includes the Needs Attention workflow) ----
+// Keep the credential form stable while the 6-second page poll runs.
+// Previously loadAssessments() rebuilt #na-list on every poll, which
+// destroyed the open form and anything the operator was typing.
+let assessmentCredentialIp = null;
+let assessmentLoadInProgress = false;
+
+function renderNeedsAttentionList(ips) {
+  const naCard = document.getElementById('needs-attention-card');
+  const list = document.getElementById('na-list');
+
+  if (!ips.length) {
+    naCard.style.display = 'none';
+    list.innerHTML = '';
+    assessmentCredentialIp = null;
+    return;
+  }
+
+  naCard.style.display = '';
+  document.getElementById('na-count').textContent = ips.length + ' device(s)';
+
+  // If a credential form is already open, do not rebuild this DOM.
+  // That preserves focus, username and password while polling continues.
+  const openForm = list.querySelector('.cred-form.open');
+  if (openForm && ips.includes(openForm.dataset.ip)) {
+    assessmentCredentialIp = openForm.dataset.ip;
+    return;
+  }
+
+  list.innerHTML = ips.map(ip => `
+    <div class="na-row" data-ip="${esc(ip)}">
+      <span class="mono">${esc(ip)}</span>
+      <div class="na-actions">
+        <button class="btn na-retry">Retry</button>
+        <button class="btn na-override">Different creds?</button>
+        <button class="btn na-skip">Skip</button>
+      </div>
+      <div class="cred-form" data-ip="${esc(ip)}">
+        <input type="text" class="na-username" placeholder="Username" autocomplete="username">
+        <input type="password" class="na-password" placeholder="Password" autocomplete="current-password">
+        <button class="btn btn-primary na-confirm">Run</button>
+        <button class="btn na-cancel">Cancel</button>
+      </div>
+    </div>`).join('');
+}
+
+async function loadAssessments() {
+  // Prevent overlapping 6-second requests from racing each other.
+  if (assessmentLoadInProgress) return;
+  assessmentLoadInProgress = true;
+
+  try {
+    const [na, results] = await Promise.all([
+      fetchJSON('/api/needs_attention'),
+      fetchJSON('/api/results?limit=200'),
+    ]);
+
+    renderNeedsAttentionList(na.needs_attention || []);
+
+    document.getElementById('assessments-body').innerHTML = results.results.length
+      ? results.results.map(r => `
+        <tr><td>${esc(r.computer || r.ip)}</td>
+        <td class="mono">${esc(r.mac || '—')}</td>
+        <td><span class="badge ${statusClass(r.status)}">${esc(r.status || 'ERROR')}</span></td>
+        <td>${esc(r.detail || '')}</td>
+        <td>${esc(r.timestamp ? toLocalDateTime(r.timestamp) : r.time)}</td></tr>`).join('')
+      : '<tr><td colspan="5" class="empty">Nothing checked yet.</td></tr>';
+
+    applyGlobalSearch();
+  } finally {
+    assessmentLoadInProgress = false;
+  }
+}
+
+document.getElementById('page-assessments').addEventListener('click', async (e) => {
+  const row = e.target.closest('.na-row');
+  if (!row) return;
+  const ip = row.dataset.ip;
+
+  if (e.target.classList.contains('na-retry')) {
+    e.target.disabled = true; e.target.textContent = 'Retrying...';
+    await fetchJSON('/api/check', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ip}) });
+    loadAssessments();
+  }
+  if (e.target.classList.contains('na-override')) {
+    document.querySelectorAll('.cred-form').forEach(f => f.classList.remove('open'));
+    const form = row.querySelector('.cred-form');
+    form.classList.add('open');
+    assessmentCredentialIp = ip;
+    // Put the cursor in the username field without rebuilding the form.
+    form.querySelector('.na-username')?.focus();
+  }
+  if (e.target.classList.contains('na-cancel')) {
+    row.querySelector('.cred-form').classList.remove('open');
+    assessmentCredentialIp = null;
+  }
+  if (e.target.classList.contains('na-skip')) {
+    await fetchJSON('/api/skip', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ip}) });
+    loadAssessments();
+  }
+  if (e.target.classList.contains('na-confirm')) {
+    const form = row.querySelector('.cred-form');
+    const username = form.querySelector('.na-username').value.trim();
+    const password = form.querySelector('.na-password').value;
+    if (!username || !password) return;
+
+    e.target.disabled = true;
+    e.target.textContent = 'Running...';
+    assessmentCredentialIp = null;
+
+    try {
+      await fetchJSON('/api/check', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ip, username, password})
+      });
+      form.classList.remove('open');
+      loadAssessments();
+    } catch (err) {
+      console.error('credentialed assessment failed:', err);
+      e.target.disabled = false;
+      e.target.textContent = 'Run';
+    }
+  }
+});
+
+// ---- Endpoints page ----
+// Endpoint inspection view.
+//
+// The backend already returns:
+//   checks
+//   ports
+//   apps
+//   processes
+//   hardware
+//   resource_usage
+//
+// This renderer exposes all of those fields instead of only showing
+// system identity, ports, applications and compliance checks.
+let lastEndpointsSignature = null;
+let expandedEndpointKeys = new Set();
+
+function formatNumber(value, decimals = 1) {
+  if (value === null || value === undefined || value === '') return '—';
+  const n = Number(value);
+  if (!Number.isFinite(n)) return esc(value);
+  return n.toFixed(decimals);
+}
+
+function resourceBar(value, label, unit = '%') {
+  const n = Number(value);
+  const valid = Number.isFinite(n);
+  const pct = valid ? Math.max(0, Math.min(100, n)) : 0;
+  return `
+    <div class="resource-card">
+      <div class="resource-card-head">
+        <span>${esc(label)}</span>
+        <strong>${valid ? formatNumber(n) + esc(unit) : '—'}</strong>
+      </div>
+      <div class="resource-track">
+        <div class="resource-fill" style="width:${pct}%;"></div>
+      </div>
+    </div>`;
+}
+
+function checkIcon(status) {
+  const s = String(status || '').toUpperCase();
+  if (s === 'COMPLIANT') return '&#9989;';
+  if (s === 'NON-COMPLIANT') return '&#10060;';
+  if (s === 'ERROR') return '&#9888;';
+  return '&#9679;';
+}
+
+function checkBadgeClass(status) {
+  const s = String(status || '').toUpperCase();
+  if (s === 'COMPLIANT') return 'endpoint-check-ok';
+  if (s === 'NON-COMPLIANT') return 'endpoint-check-bad';
+  if (s === 'ERROR') return 'endpoint-check-error';
+  return 'endpoint-check-unknown';
+}
+
+// posture_agent.ps1 reports the "Open Ports" check as a single detail
+// string: "Open/working: <list> | Blocked/unreachable: <list>". Split
+// that into its two halves so they can be shown as two separate points
+// (open ports, then blocked/unreachable ports below) instead of one
+// run-on line.
+function parsePortsDetail(detail) {
+  if (!detail) return null;
+  const match = String(detail).match(/open\/working:\s*(.*?)\s*\|\s*blocked\/unreachable:\s*(.*)$/i);
+  if (!match) return null;
+  return { open: match[1].trim(), blocked: match[2].trim() };
+}
+
+function renderCheckDetail(c) {
+  const name = String(c.name || '').toLowerCase();
+  if (name === 'open ports') {
+    const parsed = parsePortsDetail(c.detail);
+    if (parsed) {
+      return `
+        <div class="endpoint-check-detail">
+          <div class="port-detail-line port-detail-open"><strong>Open/working:</strong> ${esc(parsed.open || 'none')}</div>
+          <div class="port-detail-line port-detail-blocked"><strong>Blocked/unreachable:</strong> ${esc(parsed.blocked || 'none')}</div>
+        </div>`;
+    }
+  }
+  return `<div class="endpoint-check-detail">${esc(c.detail || 'No details reported.')}</div>`;
+}
+
+function renderEndpointChecks(checks) {
+  if (!checks || !checks.length) {
+    return '<div class="endpoint-empty">No posture checks were recorded for this endpoint.</div>';
+  }
+
+  return checks.map(c => `
+    <div class="endpoint-check-row">
+      <span class="check-icon">${checkIcon(c.status)}</span>
+      <div class="endpoint-check-main">
+        <div class="endpoint-check-title">
+          <strong>${esc(c.name || 'Unknown check')}</strong>
+          <span class="endpoint-check-badge ${checkBadgeClass(c.status)}">${esc(c.status || 'UNKNOWN')}</span>
+        </div>
+        ${renderCheckDetail(c)}
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderEndpointPorts(ports) {
+  if (!ports || !ports.length) {
+    return '<div class="endpoint-empty">No listening TCP ports were collected.</div>';
+  }
+
+  return `
+    <div class="ports-list-wrap endpoint-table-wrap">
+      <table class="ports-table">
+        <thead>
+          <tr>
+            <th>Port</th>
+            <th>Process</th>
+            <th>PID</th>
+            <th>Reachability</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${ports.map(p => {
+            const reachable = p.reachable === true;
+            const unreachable = p.reachable === false;
+            const reachText = reachable
+              ? 'Reachable'
+              : unreachable
+                ? 'Blocked / unreachable'
+                : 'Not tested';
+
+            return `
+              <tr>
+                <td><strong>${esc(p.port)}</strong></td>
+                <td class="mono">${esc(p.process || 'unknown')}</td>
+                <td>${esc(p.pid ?? '—')}</td>
+                <td>
+                  <span class="endpoint-mini-badge ${reachable ? 'endpoint-mini-ok' : unreachable ? 'endpoint-mini-bad' : 'endpoint-mini-neutral'}">
+                    ${esc(reachText)}
+                  </span>
+                </td>
+              </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+function renderEndpointProcesses(processes) {
+  if (!processes || !processes.length) {
+    return '<div class="endpoint-empty">No process snapshot was collected.</div>';
+  }
+
+  return `
+    <div class="ports-list-wrap endpoint-table-wrap process-table-wrap">
+      <table class="ports-table">
+        <thead>
+          <tr>
+            <th>Process</th>
+            <th>PID</th>
+            <th>Memory</th>
+            <th>CPU Time</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${processes.map(p => `
+            <tr>
+              <td class="mono"><strong>${esc(p.name || 'unknown')}</strong></td>
+              <td>${esc(p.pid ?? '—')}</td>
+              <td>${p.memory_mb !== null && p.memory_mb !== undefined ? formatNumber(p.memory_mb) + ' MB' : '—'}</td>
+              <td>${p.cpu_time_seconds !== null && p.cpu_time_seconds !== undefined ? formatNumber(p.cpu_time_seconds) + ' s' : '—'}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+function renderEndpointApps(apps) {
+  if (!apps || !apps.length) {
+    return '<div class="endpoint-empty">No installed-application inventory was collected.</div>';
+  }
+
+  return `
+    <div class="ports-list-wrap endpoint-table-wrap app-table-wrap">
+      <table class="ports-table">
+        <thead>
+          <tr>
+            <th>Application</th>
+            <th>Version</th>
+            <th>Publisher</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${apps.map(a => `
+            <tr>
+              <td>${esc(a.name || '—')}</td>
+              <td class="mono">${esc(a.version || '—')}</td>
+              <td>${esc(a.publisher || '—')}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+function renderEndpointResourceUsage(e) {
+  const r = e.resource_usage || {};
+  const cpu = r.cpu_percent;
+  const mem = r.memory_percent;
+  const total = r.memory_total_mb;
+  const free = r.memory_free_mb;
+
+  return `
+    <div class="endpoint-section">
+      <h4>CPU & Memory</h4>
+      <div class="resource-grid">
+        ${resourceBar(cpu, 'CPU Usage')}
+        ${resourceBar(mem, 'Memory Usage')}
+      </div>
+      <div class="resource-stats">
+        <div><span>Total Memory</span><strong>${total !== null && total !== undefined ? formatNumber(total) + ' MB' : '—'}</strong></div>
+        <div><span>Free Memory</span><strong>${free !== null && free !== undefined ? formatNumber(free) + ' MB' : '—'}</strong></div>
+      </div>
+    </div>`;
+}
+
+function renderEndpointHardware(e) {
+  const h = e.hardware || {};
+
+  return `
+    <div class="endpoint-section">
+      <h4>Hardware</h4>
+      <div class="hardware-grid">
+        <div><span>Manufacturer</span><strong>${esc(h.manufacturer || '—')}</strong></div>
+        <div><span>Model</span><strong>${esc(h.model || '—')}</strong></div>
+        <div><span>Serial Number</span><strong class="mono">${esc(h.serial_number || '—')}</strong></div>
+      </div>
+    </div>`;
+}
+
+async function loadEndpoints() {
+  try {
+    const data = await fetchJSON('/api/dashboard/endpoints');
+    const endpoints = Array.isArray(data.endpoints) ? data.endpoints : [];
+    document.getElementById('endpoint-total').textContent = '(' + endpoints.length + ')';
+
+    const signature = JSON.stringify(endpoints);
+    if (signature === lastEndpointsSignature) return;
+    lastEndpointsSignature = signature;
+
+    document.getElementById('endpoints-body').innerHTML = endpoints.length
+      ? endpoints.map((e) => {
+          const key = e.identity || e.mac || e.ip || '';
+          const isOpen = expandedEndpointKeys.has(key);
+
+          const resources = e.resource_usage || {};
+          const cpu = resources.cpu_percent;
+          const memory = resources.memory_percent;
+
+          return `
+          <tr class="endpoint-row" data-key="${esc(key)}">
+            <td>${esc(e.hostname || '—')}</td>
+            <td class="mono">${esc(e.ip || '—')}</td>
+            <td class="mono">${esc(e.mac || '—')}</td>
+            <td>${esc(e.os || '—')}</td>
+            <td><span class="badge ${statusClass(e.status)}">${esc(e.status || 'UNKNOWN')}</span> <span class="badge ${e.connected ? 'badge-compliant' : 'badge-skipped'}" style="margin-left:6px;" title="Live ISE session state, independent of posture status">${e.connected ? 'Connected' : 'Not Connected'}</span></td>
+            <td>${esc(e.last_seen_utc ? toLocalDateTime(e.last_seen_utc) : (e.last_seen_date ? e.last_seen_date + ' ' + (e.last_seen || '') : 'Never'))}</td>
+          </tr>
+
+          <tr class="details-row" data-key-details="${esc(key)}" data-ip="${esc(e.ip || '')}" data-mac="${esc(e.mac || '')}" style="display:${isOpen ? '' : 'none'};">
+            <td colspan="6">
+              <div class="endpoint-details-expanded endpoint-details-full">
+
+                <div class="endpoint-top-grid">
+                  <div class="endpoint-info-card">
+                    <h4>System Information</h4>
+                    <div><strong>Hostname:</strong> ${esc(e.hostname || '—')}</div>
+                    <div><strong>IP Address:</strong> <span class="mono">${esc(e.ip || '—')}</span></div>
+                    <div><strong>MAC Address:</strong> <span class="mono">${esc(e.mac || '—')}</span></div>
+                    <div><strong>OS:</strong> ${esc(e.os || '—')}</div>
+                    <div><strong>OS Version:</strong> <span class="mono">${esc(e.os_version || '—')}</span></div>
+                    <div><strong>Applications:</strong> ${esc(e.apps_count ?? 0)}</div>
+                    <div><strong>Last Seen:</strong> ${esc(e.last_seen_utc ? toLocalDateTime(e.last_seen_utc) : '—')}</div>
+                  </div>
+
+                  ${renderEndpointHardware(e)}
+
+                  <div class="endpoint-info-card">
+                    <h4>Current Resources</h4>
+                    <div class="resource-big-row">
+                      <span>CPU</span>
+                      <strong>${cpu !== null && cpu !== undefined ? formatNumber(cpu) + '%' : '—'}</strong>
+                    </div>
+                    <div class="resource-big-row">
+                      <span>Memory</span>
+                      <strong>${memory !== null && memory !== undefined ? formatNumber(memory) + '%' : '—'}</strong>
+                    </div>
+                  </div>
+                </div>
+
+                ${renderEndpointResourceUsage(e)}
+
+                <div class="endpoint-section" style="margin-top:14px;" data-ise-actions="${esc(key)}" data-mac="${esc(e.mac || '')}">
+                  <h4>ISE Actions <span style="font-weight:400;color:var(--muted);font-size:11.5px;">Nothing here happens automatically - each action below is explicit and logged</span></h4>
+                  <div class="endpoint-check-detail" style="margin-bottom:10px;">
+                    <strong>Last shared with ISE:</strong> ${e.shared_with_ise_at ? esc(toLocalDateTime(e.shared_with_ise_at)) : 'Never'}
+                    &nbsp;&middot;&nbsp;
+                    <strong>Enforcement state:</strong> ${esc(e.enforcement_state || 'None')}
+                  </div>
+                  <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                    <button class="btn btn-primary ise-share-btn" ${e.mac ? '' : 'disabled'}>Share Posture with ISE</button>
+                    <button class="btn ise-restrict-btn" style="border-color:var(--red);color:var(--red);" ${e.mac ? '' : 'disabled'}>Restrict Endpoint</button>
+                    <button class="btn ise-clear-btn" ${e.mac ? '' : 'disabled'}>Clear Restriction</button>
+                  </div>
+                  <div class="ise-action-status" style="margin-top:8px;font-size:12px;color:var(--muted);"></div>
+                </div>
+
+                <div class="endpoint360-inline" data-e360-inline="${esc(key)}">
+                  <div class="endpoint360-inline-head">
+                    <div><div class="endpoint360-inline-title">Endpoint 360</div><div class="endpoint360-inline-sub">Live reachability + latest posture/resource evidence for this endpoint</div></div>
+                    <div class="endpoint360-live"><span class="endpoint360-dot" data-e360-dot></span><span data-e360-live>Ready</span><button class="e360-run primary endpoint360-refresh" type="button">&#8635; Run Diagnostic</button></div>
+                  </div>
+                  <div class="endpoint360-inline-body" data-e360-body>
+                    <div class="empty">Run the diagnostic to load current Endpoint 360 evidence.</div>
+                  </div>
+                </div>
+
+                <div class="endpoint-two-column">
+                  <div class="endpoint-section">
+                    <h4>Top Processes</h4>
+                    ${renderEndpointProcesses(e.processes)}
+                  </div>
+
+                  <div class="endpoint-section">
+                    <h4>Compliance Checks</h4>
+                    <div class="endpoint-checks">
+                      ${renderEndpointChecks(e.checks)}
+                    </div>
+                  </div>
+                </div>
+
+                <div class="endpoint-two-column">
+                  <div class="endpoint-section">
+                    <h4>TCP Listening Ports</h4>
+                    ${renderEndpointPorts(e.ports)}
+                  </div>
+
+                  <div class="endpoint-section">
+                    <h4>Installed Applications</h4>
+                    ${renderEndpointApps(e.apps)}
+                  </div>
+                </div>
+
+              </div>
+            </td>
+          </tr>`;
+        }).join('')
+      : '<tr><td colspan="6" class="empty">No endpoints seen yet.</td></tr>';
+  } catch (err) {
+    console.error('endpoint load failed:', err);
+    document.getElementById('endpoints-body').innerHTML =
+      '<tr><td colspan="6" class="empty">Unable to load endpoint data. <span class="link" onclick="loadEndpoints()">Retry</span></td></tr>';
+  }
+
+  applyGlobalSearch();
+}
+
+async function loadInlineEndpoint360(detailsRow) {
+  const body = detailsRow.querySelector('[data-e360-body]');
+  const live = detailsRow.querySelector('[data-e360-live]');
+  const dot = detailsRow.querySelector('[data-e360-dot]');
+  const ip = detailsRow.dataset.ip;
+  if (!ip) { body.innerHTML = '<div class="empty">This endpoint has no IP address.</div>'; return; }
+  live.textContent = 'Running...'; dot.className = 'endpoint360-dot warn'; live.className = 'warn';
+  body.innerHTML = '<div class="empty">Running live reachability and loading the latest endpoint evidence...</div>';
+  try {
+    const data = await fetchJSON('/api/endpoint-360/diagnostic?ip=' + encodeURIComponent(ip));
+    const h = data.health || {}, liveData = data.live || {}, ep = data.endpoint || {}, r = ep.resource_usage || {}, app = data.application || {}, dns = data.dns || {};
+    const score = Number(h.score); const deg = Number.isFinite(score) ? score * 3.6 : 0;
+    const status = String(h.status || 'UNKNOWN').toUpperCase();
+    const cls = status === 'HEALTHY' ? 'e360-ok' : status === 'DEGRADED' ? 'e360-warn' : status === 'POOR' ? 'e360-bad' : 'e360-neutral';
+    dot.className = 'endpoint360-dot ' + (liveData.reachable ? 'ok' : 'bad');
+    live.className = liveData.reachable ? 'ok' : 'bad';
+    live.textContent = liveData.reachable ? ('Reachable' + (liveData.latency_ms != null ? ' · ' + Number(liveData.latency_ms).toFixed(1) + ' ms' : '')) : 'Unreachable';
+    const findings = (h.findings || []).length ? '<ul class="e360-findings">' + h.findings.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>' : '<div class="e360-note">No significant issue detected from the available evidence.</div>';
+    body.innerHTML = `
+      <div class="e360-summary">
+        <div class="e360-score-card"><div class="e360-score" style="background:conic-gradient(${status === 'HEALTHY' ? 'var(--green)' : status === 'DEGRADED' ? 'var(--orange)' : 'var(--red)'} ${deg}deg, rgba(148,163,184,.18) 0deg)"><span>${Number.isFinite(score) ? score : '--'}</span></div><div><div class="e360-label">Experience / Health</div><div class="e360-value">${esc(status)}</div><span class="e360-status ${cls}">${esc(h.root_cause || 'NONE')}</span></div></div>
+        <div class="e360-mini"><div class="e360-label">Endpoint</div><div class="e360-value">${esc(ep.hostname || ip)}</div><div class="e360-note">${esc(ep.os || 'Unknown OS')}</div></div>
+        <div class="e360-mini"><div class="e360-label">CPU</div><div class="e360-value">${r.cpu_percent == null ? '--' : Number(r.cpu_percent).toFixed(1) + '%'}</div><span class="e360-status ${Number(r.cpu_percent) >= 90 ? 'e360-bad' : Number(r.cpu_percent) >= 75 ? 'e360-warn' : 'e360-ok'}">${r.cpu_percent == null ? 'NO DATA' : Number(r.cpu_percent) >= 90 ? 'HIGH' : Number(r.cpu_percent) >= 75 ? 'ELEVATED' : 'NORMAL'}</span></div>
+        <div class="e360-mini"><div class="e360-label">Memory</div><div class="e360-value">${r.memory_percent == null ? '--' : Number(r.memory_percent).toFixed(1) + '%'}</div><span class="e360-status ${Number(r.memory_percent) >= 90 ? 'e360-bad' : Number(r.memory_percent) >= 75 ? 'e360-warn' : 'e360-ok'}">${r.memory_percent == null ? 'NO DATA' : Number(r.memory_percent) >= 90 ? 'HIGH' : Number(r.memory_percent) >= 75 ? 'ELEVATED' : 'NORMAL'}</span></div>
+        <div class="e360-mini"><div class="e360-label">Posture</div><div class="e360-value">${esc(ep.status || 'Unknown')}</div><div class="e360-note">Latest assessment</div></div>
+      </div>
+      <div class="e360-grid">
+        <div class="e360-panel"><h5>Network / Application</h5><div class="e360-kv"><span>Endpoint Ping</span><strong>${liveData.latency_ms == null ? '—' : Number(liveData.latency_ms).toFixed(1) + ' ms'}</strong><span>DNS</span><strong>${esc(dns.status || 'UNKNOWN')}</strong><span>Resolved IP</span><strong class="mono">${esc(dns.resolved_ip || '—')}</strong><span>${esc(app.target || 'Application')} TCP 443</span><strong>${app.latency_ms == null ? esc(app.status || '—') : Number(app.latency_ms).toFixed(1) + ' ms'}</strong></div></div>
+        <div class="e360-panel"><h5>Root Cause Evidence</h5>${findings}</div>
+      </div>
+      <div class="e360-note">${esc(data.scope_note || '')}</div>`;
+  } catch (err) {
+    dot.className = 'endpoint360-dot bad'; live.className = 'bad'; live.textContent = 'Diagnostic failed'; body.innerHTML = '<div class="empty">Unable to run Endpoint 360 diagnostic: ' + esc(err) + '</div>';
+  }
+}
+
+// ---- ISE actions (Share Posture / Restrict / Clear Restriction) ----
+// Nothing here happens automatically - every call below is a direct,
+// explicit result of an operator clicking a button, per the project's
+// enforcement model (posture_app.py's /share-posture, /restrict,
+// /clear-restriction routes do the actual ISE call and audit logging;
+// this just triggers them and reflects the result back in the UI).
+const ISE_ACTION_LABELS = {
+  'share-posture': 'Share Posture with ISE',
+  'restrict': 'Restrict Endpoint',
+  'clear-restriction': 'Clear Restriction',
+};
+const ISE_ACTION_CONFIRM = {
+  'share-posture': 'Share this endpoint\'s latest posture result with ISE as a custom attribute?',
+  'restrict': 'Request an immediate network restriction (CoA/ANC) for this endpoint? This can disrupt the user\'s network access right now.',
+  'clear-restriction': 'Clear any active restriction on this endpoint?',
+};
+
+async function runIseAction(section, action, button) {
+  const mac = section.dataset.mac;
+  const statusEl = section.querySelector('.ise-action-status');
+  if (!mac) {
+    statusEl.textContent = 'This endpoint has no known MAC address - cannot target an ISE action.';
+    statusEl.style.color = 'var(--red)';
+    return;
+  }
+  if (!confirm(ISE_ACTION_CONFIRM[action])) return;
+
+  const allButtons = section.querySelectorAll('button');
+  allButtons.forEach(b => b.disabled = true);
+  const originalText = button.textContent;
+  button.textContent = ISE_ACTION_LABELS[action] + '...';
+  statusEl.style.color = 'var(--muted)';
+  statusEl.textContent = 'Sending request to ISE...';
+
+  try {
+    const data = await fetchJSON(`/api/v1/endpoints/${encodeURIComponent(mac)}/${action}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    const ok = data && (data.ok === true || data.status === 'SUCCESS');
+    statusEl.style.color = ok ? 'var(--green)' : 'var(--red)';
+    statusEl.textContent = (ok ? 'Success: ' : 'Failed: ') + (data.detail || (ok ? 'Done.' : 'See Audit Logs for detail.'));
+  } catch (err) {
+    statusEl.style.color = 'var(--red)';
+    statusEl.textContent = 'Request failed: ' + err;
+  } finally {
+    allButtons.forEach(b => b.disabled = false);
+    button.textContent = originalText;
+  }
+}
+
+document.getElementById('endpoints-body').addEventListener('click', async (e) => {
+  const iseBtn = e.target.closest('.ise-share-btn, .ise-restrict-btn, .ise-clear-btn');
+  if (iseBtn) {
+    e.stopPropagation();
+    const section = e.target.closest('[data-ise-actions]');
+    if (!section) return;
+    const action = iseBtn.classList.contains('ise-share-btn') ? 'share-posture'
+      : iseBtn.classList.contains('ise-restrict-btn') ? 'restrict'
+      : 'clear-restriction';
+    await runIseAction(section, action, iseBtn);
+    return;
+  }
+
+  const refresh = e.target.closest('.endpoint360-refresh');
+  if (refresh) {
+    e.stopPropagation();
+    const details = e.target.closest('.details-row');
+    if (details) await loadInlineEndpoint360(details);
+    return;
+  }
+  const row = e.target.closest('.endpoint-row');
+  if (!row) return;
+  const detailsRow = row.nextElementSibling;
+  if (!detailsRow || !detailsRow.classList.contains('details-row')) return;
+  const key = row.dataset.key;
+  const willOpen = detailsRow.style.display === 'none';
+  detailsRow.style.display = willOpen ? '' : 'none';
+  if (willOpen) {
+    expandedEndpointKeys.add(key);
+    await loadInlineEndpoint360(detailsRow);
+  } else {
+    expandedEndpointKeys.delete(key);
+  }
+});
+
+// ---- Applications page ----
+let appsSearchTerm = '';
+
+async function loadApplications() {
+  const url = appsSearchTerm ? '/api/v1/applications?q=' + encodeURIComponent(appsSearchTerm) : '/api/v1/applications';
+  const data = await fetchJSON(url);
+  document.getElementById('apps-total').textContent = '(' + data.total + ')';
+
+  document.getElementById('applications-body').innerHTML = data.applications.length
+    ? data.applications.map(a => `
+      <tr>
+        <td>${esc(a.name)}</td>
+        <td class="mono">${esc(a.version || '—')}</td>
+        <td>${esc(a.publisher || '—')}</td>
+        <td>${esc(a.hostname || a.mac || '—')}</td>
+      </tr>`).join('')
+    : `<tr><td colspan="4" class="empty">${appsSearchTerm ? 'No applications match your search.' : 'No applications discovered on any endpoint yet.'}</td></tr>`;
+
+  applyGlobalSearch();
+}
+
+document.getElementById('apps-search').addEventListener('input', (e) => {
+  appsSearchTerm = e.target.value.trim();
+  loadApplications();
+});
+
+// ---- Application Remediation page ----
+let remediationSearchTerm = '';
+let remediationDonutChart = null;
+let remediationExpandedMacs = new Set();
+let remediationAppsCache = {};
+let remediationCommonCredConfigured = false;
+
+async function refreshRemediationCommonCredStatus() {
+  const el = document.getElementById('remediation-cred-status');
+  try {
+    const status = await fetchJSON('/api/remediation/common-credential');
+    remediationCommonCredConfigured = !!status.configured;
+    if (el) {
+      el.style.background = remediationCommonCredConfigured ? 'var(--green-bg)' : 'var(--orange-bg)';
+      el.style.color = remediationCommonCredConfigured ? 'var(--green)' : 'var(--orange)';
+      el.textContent = remediationCommonCredConfigured
+        ? 'Common credential configured - uninstalls run automatically, no prompt needed.'
+        : 'No common credential saved yet - run Save-PostureCredential.ps1 once on this console to stop being asked for username/password every time.';
+    }
+  } catch (err) {
+    console.error('common credential status check failed:', err);
+    remediationCommonCredConfigured = false;
+    if (el) { el.style.background = 'var(--orange-bg)'; el.style.color = 'var(--orange)'; el.textContent = 'Unable to check credential status.'; }
+  }
+}
+
+function remediationCategoryBadgeClass(category) {
+  if (category === 'Business Relevant') return 'badge-compliant';
+  if (category === 'Business Irrelevant') return 'badge-non-compliant';
+  return 'badge-skipped';
+}
+
+function renderRemediationDonut(summary) {
+  const ctx = document.getElementById('remediation-donut-chart');
+  if (!ctx) return;
+  const data = [summary.relevant, summary.irrelevant, summary.review];
+  if (remediationDonutChart) {
+    remediationDonutChart.data.datasets[0].data = data;
+    remediationDonutChart.update();
+    return;
+  }
+  remediationDonutChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: ['Business Relevant', 'Business Irrelevant', 'Review'],
+      datasets: [{ data, backgroundColor: ['#16a34a', '#dc2626', '#f59e0b'], borderWidth: 0 }],
+    },
+    options: { cutout: '72%', plugins: { legend: { display: false }, tooltip: { enabled: true } } },
+  });
+}
+
+function renderRemediationEndpointApps(mac, apps) {
+  if (!apps.length) {
+    return '<div class="empty">No applications discovered on this endpoint yet.</div>';
+  }
+  return `
+    <table>
+      <thead><tr><th></th><th>Application</th><th>Version</th><th>Publisher</th><th>Category</th><th>Actions</th></tr></thead>
+      <tbody>
+        ${apps.map(a => `
+          <tr>
+            <td><input type="checkbox" class="remediation-select" data-mac="${esc(mac)}" data-name="${esc(a.name)}" ${a.selected_for_uninstall ? 'checked' : ''} ${a.protected ? 'disabled' : ''}></td>
+            <td>${esc(a.name)}${a.protected ? '<span class="not-impl-tag">Protected</span>' : ''}</td>
+            <td class="mono">${esc(a.version || '-')}</td>
+            <td>${esc(a.publisher || '-')}</td>
+            <td><span class="badge ${remediationCategoryBadgeClass(a.category)}">${esc(a.category)}</span></td>
+            <td style="white-space:nowrap;">
+              <button class="btn remediation-relevant" data-mac="${esc(mac)}" data-name="${esc(a.name)}">Relevant</button>
+              <button class="btn remediation-irrelevant" data-mac="${esc(mac)}" data-name="${esc(a.name)}">Irrelevant</button>
+              <button class="btn remediation-uninstall-one" data-mac="${esc(mac)}" data-name="${esc(a.name)}" ${a.protected ? 'disabled' : ''}>Uninstall</button>
+            </td>
+          </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+async function loadRemediationEndpointApps(mac, container) {
+  container.innerHTML = '<div class="empty">Loading applications...</div>';
+  try {
+    const data = await fetchJSON('/api/remediation/endpoints/' + encodeURIComponent(mac) + '/apps');
+    remediationAppsCache[mac] = data.applications || [];
+    container.innerHTML = renderRemediationEndpointApps(mac, remediationAppsCache[mac]);
+  } catch (err) {
+    console.error('remediation endpoint apps failed:', err);
+    container.innerHTML = '<div class="empty">Unable to load applications for this endpoint.</div>';
+  }
+}
+
+async function loadRemediation() {
+  const preserveExpanded = remediationExpandedMacs.size > 0;
+  await refreshRemediationCommonCredStatus();
+  let summary;
+  try {
+    summary = await fetchJSON('/api/remediation/summary');
+    const cards = [
+      { label: 'Total Applications', value: summary.total, icon: '&#128230;', color: 'blue' },
+      { label: 'Business Relevant', value: summary.relevant, icon: '&#10003;', color: 'green' },
+      { label: 'Business Irrelevant', value: summary.irrelevant, icon: '&#9888;', color: 'red' },
+      { label: 'Review', value: summary.review, icon: '&#128269;', color: 'orange' },
+      { label: 'Selected for Uninstall', value: summary.selected, icon: '&#128465;', color: 'purple' },
+    ];
+    document.getElementById('remediation-stat-cards').innerHTML = cards.map(c => `
+      <div class="card stat-card">
+        <div class="stat-icon" style="background:var(--${c.color}-bg); color:var(--${c.color});">${c.icon}</div>
+        <div><div class="stat-label">${c.label}</div><div class="stat-value">${c.value}</div></div>
+      </div>`).join('');
+  } catch (err) {
+    console.error('remediation summary failed:', err);
+  }
+
+  try {
+    if (!summary) throw new Error('No summary data');
+    if (typeof Chart === 'undefined') throw new Error('Chart.js did not load');
+    renderRemediationDonut(summary);
+    const total = summary.total || 1;
+    const rows = [
+      ['Business Relevant', '#16a34a', summary.relevant],
+      ['Business Irrelevant', '#dc2626', summary.irrelevant],
+      ['Review', '#f59e0b', summary.review],
+    ];
+    document.getElementById('remediation-donut-legend').innerHTML = rows.map(([label, color, n]) => `
+      <div class="legend-item"><span class="legend-dot" style="background:${color}"></span>${label}
+        <span class="n">${n}</span><span class="pct">${Math.round((n / total) * 100)}%</span></div>`).join('');
+  } catch (err) {
+    console.error('remediation donut failed:', err);
+    const wrap = document.getElementById('remediation-donut-chart');
+    if (wrap) wrap.closest('div').innerHTML = '<div class="empty">Chart library failed to load. Numbers are accurate in the cards above.</div>';
+  }
+
+  if (!preserveExpanded) {
+    try {
+      const url = '/api/remediation/endpoints' + (remediationSearchTerm ? '?q=' + encodeURIComponent(remediationSearchTerm) : '');
+    const data = await fetchJSON(url);
+    const endpoints = data.endpoints || [];
+
+    document.getElementById('remediation-endpoints-total').textContent = '(' + data.total + ')';
+    document.getElementById('remediation-endpoints-body').innerHTML = endpoints.length
+      ? endpoints.map(e => `
+        <tr class="endpoint-row remediation-endpoint-row" data-mac="${esc(e.mac)}">
+          <td>${esc(e.hostname || '-')}</td>
+          <td class="mono">${esc(e.ip || '-')}</td>
+          <td class="mono">${esc(e.mac || '-')}</td>
+          <td>${esc(e.os || '-')}</td>
+          <td>${esc(e.apps_count ?? 0)} app${(e.apps_count ?? 0) === 1 ? '' : 's'}</td>
+        </tr>
+        <tr class="details-row" data-key-details="${esc(e.mac)}" style="display:none;">
+          <td colspan="5">
+            <div class="endpoint-details-expanded">
+              <div class="remediation-ep-apps" data-mac="${esc(e.mac)}"></div>
+            </div>
+          </td>
+        </tr>`).join('')
+      : `<tr><td colspan="5" class="empty">${remediationSearchTerm ? 'No endpoints match your search.' : 'No endpoints seen yet.'}</td></tr>`;
+    } catch (err) {
+      console.error('remediation endpoints failed:', err);
+    }
+  }
+
+  try {
+    const audit = await fetchJSON('/api/remediation/audit?limit=25');
+    document.getElementById('remediation-audit-body').innerHTML = (audit.entries || []).length
+      ? audit.entries.map(e => `
+        <tr>
+          <td>${esc(toLocalDateTime(e.timestamp))}</td>
+          <td>${esc(e.action)}</td>
+          <td>${esc(e.application || '-')}</td>
+          <td class="mono">${esc(e.endpoint_ip || '-')}</td>
+          <td>${esc(e.detail || '-')}</td>
+        </tr>`).join('')
+      : '<tr><td colspan="5" class="empty">No remediation activity yet.</td></tr>';
+  } catch (err) {
+    console.error('remediation audit failed:', err);
+  }
+
+  applyGlobalSearch();
+}
+
+document.getElementById('remediation-search').addEventListener('input', (e) => {
+  remediationSearchTerm = e.target.value.trim();
+  loadRemediation();
+});
+
+document.getElementById('remediation-endpoints-body').addEventListener('click', async (e) => {
+  const row = e.target.closest('.remediation-endpoint-row');
+
+  if (row) {
+    const mac = row.dataset.mac;
+    const detailsRow = row.nextElementSibling;
+    if (!detailsRow || !detailsRow.classList.contains('details-row')) return;
+
+    const willOpen = detailsRow.style.display === 'none';
+    detailsRow.style.display = willOpen ? '' : 'none';
+
+    if (willOpen) {
+      remediationExpandedMacs.add(mac);
+      const container = detailsRow.querySelector('.remediation-ep-apps');
+      await loadRemediationEndpointApps(mac, container);
+    } else {
+      remediationExpandedMacs.delete(mac);
+    }
+    return;
+  }
+
+  const name = e.target.dataset.name;
+  const mac = e.target.dataset.mac;
+  if (!name || !mac) return;
+
+  const container = e.target.closest('.remediation-ep-apps');
+
+  if (e.target.classList.contains('remediation-relevant') || e.target.classList.contains('remediation-irrelevant')) {
+    const category = e.target.classList.contains('remediation-relevant') ? 'Business Relevant' : 'Business Irrelevant';
+    e.target.disabled = true;
+    try {
+      await fetchJSON('/api/remediation/classify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, category }),
+      });
+    } catch (err) {
+      console.error('classify failed:', err);
+    }
+    if (container) await loadRemediationEndpointApps(mac, container);
+    return;
+  }
+
+  if (e.target.classList.contains('remediation-uninstall-one')) {
+    const endpointRow = document.querySelector(`.remediation-endpoint-row[data-mac="${CSS.escape(mac)}"]`);
+    const ip = endpointRow ? endpointRow.children[1].textContent.trim() : '';
+    if (!confirm('Uninstall "' + name + '" from ' + (ip || mac) + '?')) return;
+
+    // If a common credential is saved (Save-PostureCredential.ps1),
+    // the backend picks it up automatically whenever username/password
+    // are left blank - so nothing to prompt for. Only ask when nothing
+    // is saved yet.
+    let username = '', password = '';
+    if (!remediationCommonCredConfigured) {
+      if (confirm('No common credential is saved yet. Use specific admin credentials for ' + (ip || mac) + '? Click Cancel to try with no credentials (usually fails).')) {
+        username = prompt('Username on ' + (ip || mac) + ' (e.g. Administrator):') || '';
+        password = username ? (prompt('Password for ' + username + ':') || '') : '';
+      }
+    }
+
+    e.target.disabled = true;
+    e.target.textContent = 'Uninstalling...';
+    try {
+      const body = { name, targets: [{ ip, mac }] };
+      if (username && password) { body.username = username; body.password = password; }
+
+      const data = await fetchJSON('/api/remediation/uninstall', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const result = (data.results || [])[0] || {};
+      if (result.status === 'PENDING_REBOOT') {
+        alert('Uninstall of "' + name + '" ran successfully.\n\nThis is driver-based software - Windows will finish removing it on the endpoint\'s next reboot. It will still show as installed until then.');
+      } else if (result.status !== 'UNINSTALLED') {
+        const reason = result.reason || result.error || result.output || 'Unknown error - check WinRM connectivity/credentials on the target.';
+        alert('Uninstall of "' + name + '" failed:\n\n' + reason);
+      }
+    } catch (err) {
+      console.error('uninstall failed:', err);
+      alert('Uninstall request failed: ' + err);
+    }
+    if (container) await loadRemediationEndpointApps(mac, container);
+    await loadRemediation();
+  }
+});
+
+document.getElementById('remediation-endpoints-body').addEventListener('change', async (e) => {
+  if (!e.target.classList.contains('remediation-select')) return;
+  const name = e.target.dataset.name;
+  const selected = e.target.checked;
+  try {
+    await fetchJSON('/api/remediation/select', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, selected }),
+    });
+  } catch (err) {
+    console.error('select failed:', err);
+  }
+});
+
+// ---- Ports page (grouped by endpoint, click a row to expand its ports) ----
+let portsSearchTerm = '';
+let lastPortsSignature = null;
+let expandedPortKeys = new Set();
+
+function groupPortsByEndpoint(ports) {
+  const groups = new Map();
+  for (const p of ports) {
+    const key = p.mac || p.hostname || p.ip || 'unknown';
+    if (!groups.has(key)) {
+      groups.set(key, { key, hostname: p.hostname, ip: p.ip, mac: p.mac, ports: [] });
+    }
+    groups.get(key).ports.push(p);
+  }
+  return [...groups.values()].sort((a, b) => b.ports.length - a.ports.length);
+}
+
+async function loadPortsPage(force) {
+  const url = portsSearchTerm ? '/api/v1/ports?q=' + encodeURIComponent(portsSearchTerm) : '/api/v1/ports';
+  const data = await fetchJSON(url);
+  document.getElementById('ports-total').textContent = '(' + data.total + ')';
+
+  const signature = JSON.stringify(data.ports);
+  if (!force && signature === lastPortsSignature) return;
+  lastPortsSignature = signature;
+
+  const groups = groupPortsByEndpoint(data.ports);
+
+  document.getElementById('ports-body').innerHTML = groups.length
+    ? groups.map(g => {
+        const isOpen = expandedPortKeys.has(g.key);
+        const portsTableHTML = `
+          <div class="ports-list-wrap">
+            <table class="ports-table">
+              <thead><tr><th>Port</th><th>Protocol</th><th>Process</th><th>PID</th></tr></thead>
+              <tbody>
+                ${g.ports.map(p => `
+                  <tr>
+                    <td><strong>${esc(p.port)}</strong></td>
+                    <td>${esc(p.protocol || 'TCP')}</td>
+                    <td class="mono">${esc(p.process || 'Unknown')}</td>
+                    <td>${p.pid ?? '—'}</td>
+                  </tr>`).join('')}
+              </tbody>
+            </table>
+          </div>`;
+        return `
+        <tr class="endpoint-row port-group-row" data-key="${esc(g.key)}">
+          <td style="width:20px; color:var(--muted);">${isOpen ? '&#9662;' : '&#9656;'}</td>
+          <td>${esc(g.hostname || '—')}</td>
+          <td class="mono">${esc(g.ip || '—')}</td>
+          <td class="mono">${esc(g.mac || '—')}</td>
+          <td><span class="badge badge-compliant">${g.ports.length} open</span></td>
+        </tr>
+        <tr class="details-row" data-key-details="${esc(g.key)}" style="display:${isOpen ? '' : 'none'};">
+          <td colspan="5"><div class="endpoint-details-expanded">${portsTableHTML}</div></td>
+        </tr>`;
+      }).join('')
+    : `<tr><td colspan="5" class="empty">${portsSearchTerm ? 'No ports match your search.' : 'No listening ports discovered on any endpoint yet.'}</td></tr>`;
+
+  applyGlobalSearch();
+}
+
+document.getElementById('ports-body').addEventListener('click', (e) => {
+  const row = e.target.closest('.port-group-row');
+  if (!row) return;
+
+  // Same reasoning as the endpoints handler above: use the adjacent
+  // sibling row, not a document-wide lookup by key, so this table never
+  // toggles a row belonging to the Endpoints page (which can share the
+  // same MAC-based key).
+  const detailsRow = row.nextElementSibling;
+  if (!detailsRow || !detailsRow.classList.contains('details-row')) return;
+
+  const key = row.dataset.key;
+  const willOpen = detailsRow.style.display === 'none';
+  detailsRow.style.display = willOpen ? '' : 'none';
+  row.querySelector('td').innerHTML = willOpen ? '&#9662;' : '&#9656;';
+
+  if (willOpen) {
+    expandedPortKeys.add(key);
+  } else {
+    expandedPortKeys.delete(key);
+  }
+});
+
+document.getElementById('ports-search').addEventListener('input', (e) => {
+  portsSearchTerm = e.target.value.trim();
+  loadPortsPage(true);
+});
+
+// ---- Endpoint 360 selected endpoint page ----
+const ep360 = id => document.getElementById('ep360-' + id);
+let ep360DnsChart = null, ep360NetChart = null, ep360AppChart = null;
+let ep360RangeMins = 15;
+let ep360AutoRefresh = true;
+let ep360Endpoints = [];
+let ep360SelectedIp = '';
+
+function ep360Set(id, v, s) { const el=ep360(id); el.textContent=v ?? '--'; el.className='ep360-status '+ep360Cls(s); }
+function ep360Cls(s) { s=String(s||'').toUpperCase(); if(s==='HEALTHY'||s==='COMPLIANT') return 'ep360-healthy'; if(s==='DEGRADED'||s==='REVIEW'||s==='AT RISK') return 'ep360-degraded'; if(s==='POOR'||s==='FAILED'||s==='DOWN'||s==='NON-COMPLIANT'||s==='ERROR') return 'ep360-poor'; return 'ep360-neutral'; }
+function ep360Fmt(v,u='') { return v===null || v===undefined || v==='' ? '--' : v+u; }
+function ep360Kv(items) { return items.map(x=>'<div>'+esc(x[0])+'</div><div>'+esc(x[1] ?? '--')+'</div>').join(''); }
+function ep360PaintGauge(score) { const s=Math.max(0,Math.min(100,Number(score)||0)); const color=s>=90?'#16a34a':s>=70?'#f59e0b':'#dc2626'; ep360('gauge').style.background=`conic-gradient(${color} ${s*3.6}deg,#e5e7eb 0deg)`; }
+
+function ep360LineChart(canvasId, existing, labels, data, color) {
+  const ctx=document.getElementById(canvasId); if(!ctx) return existing;
+  if(existing){ existing.data.labels=labels; existing.data.datasets[0].data=data; existing.update(); return existing; }
+  return new Chart(ctx,{type:'line',data:{labels,datasets:[{data,borderColor:color,backgroundColor:color+'22',fill:true,tension:.35,pointRadius:0,borderWidth:2}]},options:{animation:false,plugins:{legend:{display:false}},scales:{x:{display:false},y:{display:false,beginAtZero:true}}}});
+}
+
+async function loadEndpoint360Choices() {
+  const select=document.getElementById('ep360-endpoint-select');
+  try {
+    const data=await fetchJSON('/api/endpoint-360/endpoints');
+    ep360Endpoints=Array.isArray(data.endpoints)?data.endpoints:[];
+    const previous=ep360SelectedIp || select.value;
+    select.innerHTML='<option value="">Choose an endpoint...</option>'+ep360Endpoints.map(e=>{
+      const label=(e.hostname||'Unknown endpoint')+'  |  '+(e.ip||'No IP')+'  |  '+(e.status||'Never Checked');
+      return '<option value="'+esc(e.ip||'')+'">'+esc(label)+'</option>';
+    }).join('');
+    if(previous && ep360Endpoints.some(e=>e.ip===previous)){ select.value=previous; } else if(ep360Endpoints.length===1 && ep360Endpoints[0].ip){ select.value=ep360Endpoints[0].ip; ep360SelectedIp=ep360Endpoints[0].ip; }
+  } catch(err) { select.innerHTML='<option value="">Unable to load endpoints</option>'; console.error(err); }
+}
+
+function renderTrace(data) {
+  const hops=Array.isArray(data.traceroute?.hops)?data.traceroute.hops:[];
+  const target=data.endpoint?.ip || ep360SelectedIp || '--';
+  const nodes=[{name:'Console',ip:data.console_ip||'This host'}];
+  hops.filter(h=>h.ip).forEach(h=>nodes.push({name:'Hop '+h.hop,ip:h.ip,latency:h.latency_ms}));
+  nodes.push({name:data.endpoint?.hostname||'Endpoint',ip:target,latency:data.live?.latency_ms});
+  document.getElementById('ep360-path').innerHTML='<div class="ep360-path">'+nodes.map((n,i)=>'<div class="ep360-node"><div class="ep360-circle">'+(i+1)+'</div><b>'+esc(n.name)+'</b><br><small>'+esc(n.ip)+(n.latency!=null?' · '+n.latency+' ms':'')+'</small></div>'+(i<nodes.length-1?'<div class="ep360-line"></div>':'')).join('')+'</div>';
+  const traceStatus=data.traceroute?.status || (hops.length?'COMPLETE':'NO RESPONSE');
+  document.getElementById('ep360-traceMeta').textContent=(hops.length||0)+' hops · '+traceStatus;
+  document.getElementById('ep360-traceTable').innerHTML=hops.length?'<table class="ep360-trace-table"><thead><tr><th>Hop</th><th>Address</th><th>Latency</th><th>Status</th></tr></thead><tbody>'+hops.map(h=>{const ms=h.latency_ms;const cls=ms==null?'ep360-trace-warn':ms<=30?'ep360-trace-good':ms<=100?'ep360-trace-warn':'ep360-trace-bad';return '<tr><td>'+esc(h.hop)+'</td><td class="mono">'+esc(h.ip||'*')+'</td><td>'+esc(ms==null?'*':ms+' ms')+'</td><td class="'+cls+'">'+(ms==null?'TIMEOUT':ms<=30?'GOOD':ms<=100?'ELEVATED':'HIGH')+'</td></tr>'}).join('')+'</tbody></table>':'<div class="ep360-loading">No traceroute hops were returned. The endpoint may block ICMP/TTL probes or be on the local segment.</div>';
+}
+
+function renderAssessment(data) {
+  const ep=data.endpoint||{}, checks=ep.checks||[], h=ep.health||{};
+  const status=ep.status||'Never Checked';
+  ep360('assessStatus').textContent=status;
+  ep360('checkCount').textContent=checks.length+' checks';
+  ep360('lastSeen').textContent=ep.last_seen||'No timestamp';
+  ep360('assessment-meta').textContent=ep.assessment_timestamp ? 'Last assessment: '+toLocalDateTime(ep.assessment_timestamp) : 'No assessment timestamp';
+  const ok=checks.filter(c=>String(c.status||'').toUpperCase()==='COMPLIANT').length;
+  const bad=checks.filter(c=>String(c.status||'').toUpperCase()!=='COMPLIANT').length;
+  ep360('assessment-grid').innerHTML=ep360Kv([
+    ['Status',status],['Compliant checks',ok],['Attention',bad],['Detail',ep.detail||'No assessment detail'],
+  ]);
+  ep360('assessment-findings').innerHTML=checks.length?checks.map(c=>{
+    const name = String(c.name||c.check_name||'').toLowerCase();
+    let detailHTML;
+    if (name === 'open ports') {
+      const parsed = parsePortsDetail(c.detail);
+      detailHTML = parsed
+        ? '<div class="port-detail-line port-detail-open"><strong>Open/working:</strong> '+esc(parsed.open||'none')+'</div>'
+          + '<div class="port-detail-line port-detail-blocked"><strong>Blocked/unreachable:</strong> '+esc(parsed.blocked||'none')+'</div>'
+        : '<span style="color:var(--muted)">'+esc(c.detail||'')+'</span>';
+    } else {
+      detailHTML = '<span style="color:var(--muted)">'+esc(c.detail||'')+'</span>';
+    }
+    return '<div class="ep360-finding '+(String(c.status).toUpperCase()==='COMPLIANT'?'low':'high')+'"><b>'+esc(c.name||c.check_name||'Check')+'</b> · '+esc(c.status||'UNKNOWN')+'<br>'+detailHTML+'</div>';
+  }).join(''):'<div class="ep360-loading">No assessment checks have been recorded for this endpoint.</div>';
+}
+
+async function loadEndpoint360() {
+  const ip=document.getElementById('ep360-endpoint-select').value;
+  ep360SelectedIp=ip;
+  if(!ip){ ep360('identity').textContent='Select an endpoint to view its assessment and run diagnostics.'; return; }
+  ep360('identity').textContent='Loading '+ip+'...';
+  try {
+    const target=encodeURIComponent(document.getElementById('ep360-target').value.trim()||'outlook.office.com');
+    const data=await fetchJSON('/api/endpoint-360/diagnostic?ip='+encodeURIComponent(ip)+'&target='+target+'&max_hops=12');
+    const ep=data.endpoint||{}, health=data.health||{}, live=data.live||{}, dns=data.dns||{}, app=data.application||{}, trace=data.traceroute||{}, resources=ep.resource_usage||{};
+    const score=Number(health.score); ep360('score').textContent=Number.isFinite(score)?Math.round(score):'--'; ep360PaintGauge(score); ep360Set('overall',health.status,health.status); ep360('root').textContent=health.root_cause||'NONE'; ep360Set('rootStatus',health.findings?.length?'Investigate':'No issue',health.findings?.length?'DEGRADED':'HEALTHY');
+    ep360('gateway').textContent=live.latency_ms!=null?Number(live.latency_ms).toFixed(1)+' ms':(live.reachable?'Reachable':'--'); ep360Set('gatewayStatus',live.reachable?'HEALTHY':'POOR',live.reachable?'HEALTHY':'POOR');
+    ep360('internet').textContent=dns.resolved_ip||'--'; ep360Set('internetStatus',dns.status,dns.status);
+    ep360('app').textContent=app.latency_ms!=null?Number(app.latency_ms).toFixed(1)+' ms':app.status||'--'; ep360Set('appStatus',app.status,app.status);
+    ep360('identity').textContent=(ep.hostname||'Endpoint')+' | '+(ep.ip||ip)+' | '+(ep.os||'Unknown OS');
+    renderAssessment(data);
+    ep360('endpoint').innerHTML=ep360Kv([['CPU',ep360Fmt(resources.cpu_percent,'%')],['Memory',ep360Fmt(resources.memory_percent,'%')],['Free Memory',ep360Fmt(resources.memory_free_mb,' MB')],['Total Memory',ep360Fmt(resources.memory_total_mb,' MB')],['OS',ep.os||'--'],['MAC',ep.mac||'--']]);
+    ep360('wifi').innerHTML=ep360Kv([['Endpoint',ep.hostname||'--'],['IP',ep.ip||ip],['DNS Host',dns.hostname||'--'],['Resolved IP',dns.resolved_ip||'--'],['Reachability',live.reachable?'Reachable':'Unreachable'],['Target',app.target||'--']]);
+    ep360('dnsPerf').innerHTML=ep360Kv([['Hostname',dns.hostname||'--'],['Resolved IP',dns.resolved_ip||'--'],['Status',dns.status||'--']]);
+    ep360('netPerf').innerHTML=ep360Kv([['Endpoint latency',ep360Fmt(live.latency_ms,' ms')],['Reachable',live.reachable?'YES':'NO'],['Trace hops',trace.hops?.length||0],['Trace status',trace.status||'--']]);
+    ep360('appPerf').innerHTML=ep360Kv([['Target',app.target||'--'],['TCP 443',ep360Fmt(app.latency_ms,' ms')],['Status',app.status||'--'],['Error',app.error||'--']]);
+    renderTrace(data);
+    ep360('findings').innerHTML=(health.findings||[]).length?health.findings.map(x=>'<div class="ep360-finding">'+esc(x)+'</div>').join(''):'<div class="ep360-status ep360-healthy">No significant issue detected from the available endpoint evidence.</div>';
+    ep360('recommendation').textContent=(health.findings||[]).length?'Investigate '+(health.root_cause||'the highlighted endpoint condition')+' and review the latest assessment checks.':'Endpoint is reachable and the latest assessment shows no major issue.';
+
+    const days=Math.max(1,Math.ceil(ep360RangeMins/1440));
+    const hist=await fetchJSON('/api/endpoint-360/history?ip='+encodeURIComponent(ip)+'&days='+days+'&limit=2000');
+    const rows=hist.history||[];
+    const labels=rows.map(row=>toLocalHourLabel((row.timestamp||'').endsWith('Z')?row.timestamp:row.timestamp+'Z'));
+    if(typeof Chart!=='undefined'){
+      ep360DnsChart=ep360LineChart('ep360-dnsChart',ep360DnsChart,labels,rows.map(r=>r.dns_latency_ms),'#0891b2');
+      ep360NetChart=ep360LineChart('ep360-netChart',ep360NetChart,labels,rows.map(r=>r.endpoint_latency_ms),'#2563eb');
+      ep360AppChart=ep360LineChart('ep360-appChart',ep360AppChart,labels,rows.map(r=>r.application_latency_ms),'#7c3aed');
+    }
+  } catch(err){ console.error(err); ep360('identity').textContent='Unable to load Endpoint 360: '+err; ep360('recommendation').textContent='Diagnostic failed. Check the selected endpoint and try again.'; }
+}
+
+document.getElementById('ep360-endpoint-select').addEventListener('change',()=>{ ep360SelectedIp=document.getElementById('ep360-endpoint-select').value; loadEndpoint360(); });
+document.getElementById('ep360-range').addEventListener('click',e=>{const mins=e.target.dataset.mins;if(!mins)return;ep360RangeMins=parseInt(mins,10);document.querySelectorAll('#ep360-range button').forEach(b=>b.classList.toggle('active',b.dataset.mins===mins));loadEndpoint360();});
+document.getElementById('ep360-autorefresh').addEventListener('change',e=>{ep360AutoRefresh=e.target.checked;});
+document.getElementById('ep360-refresh-btn').addEventListener('click',loadEndpoint360);
+document.getElementById('ep360-diag-btn').addEventListener('click',loadEndpoint360);
+document.getElementById('ep360-diag-btn2').addEventListener('click',loadEndpoint360);
+document.getElementById('ep360-export-btn').addEventListener('click',()=>{const ip=document.getElementById('ep360-endpoint-select').value;if(ip)window.open('/api/endpoint-360/diagnostic?ip='+encodeURIComponent(ip),'_blank');});
+// ---- Administration / System Health page ----
+async function loadAdministration() {
+  const el = document.getElementById('admin-health-list');
+  let health;
+  try {
+    health = await fetchJSON('/api/dashboard/health');
+  } catch (err) {
+    console.error('system health failed:', err);
+    el.innerHTML = '<div class="empty">Unable to load system health. <span class="link" onclick="loadAdministration()">Retry</span></div>';
+    return;
+  }
+
+  const healthItems = [
+    { name: 'Posture App', tag: health.posture_app.reachable ? 'Healthy' : 'Unreachable', kind: health.posture_app.reachable ? 'ok' : 'bad' },
+    { name: 'ISE Configuration', tag: health.ise_configured ? 'Configured' : 'Not configured', kind: health.ise_configured ? 'ok' : 'bad' },
+    { name: 'Session Watcher', tag: health.watcher.last_activity ? health.watcher.last_activity : 'No data', kind: health.watcher.recent ? 'ok' : 'bad' },
+    { name: 'Database', tag: health.database && health.database.built ? health.database.note : 'No DB in this build', kind: health.database && health.database.built ? 'ok' : 'soon' },
+    { name: 'Report Service', tag: 'Not built', kind: 'soon' },
+    { name: 'Notification Service', tag: 'Not built', kind: 'soon' },
+  ];
+  el.innerHTML = healthItems.map(h => `
+    <div class="health-row">
+      <span class="health-dot" style="background:${h.kind === 'ok' ? '#16a34a' : h.kind === 'bad' ? '#dc2626' : '#d1d5db'}"></span>
+      <span class="health-name">${esc(h.name)}</span>
+      <span class="health-tag ${h.kind}">${esc(h.tag)}</span>
+    </div>`).join('');
+}
+
+// ---- Audit Logs page ----
+let auditLogsSearchTerm = '';
+
+function auditActionBadgeClass(action) {
+  action = String(action || '');
+  if (action === 'SHARE_POSTURE') return 'badge-compliant';
+  if (action === 'RESTRICT') return 'badge-non-compliant';
+  if (action === 'CLEAR_RESTRICTION') return 'badge-skipped';
+  return 'badge-unknown';
+}
+
+function auditResultBadgeClass(result) {
+  return String(result || '').toUpperCase() === 'SUCCESS' ? 'badge-compliant' : 'badge-error';
+}
+
+async function loadAuditLogs() {
+  let data;
+  try {
+    data = await fetchJSON('/api/audit/ise-actions?limit=500');
+  } catch (err) {
+    console.error('audit logs failed:', err);
+    document.getElementById('auditlogs-body').innerHTML =
+      '<tr><td colspan="6" class="empty">Unable to load audit logs. <span class="link" onclick="loadAuditLogs()">Retry</span></td></tr>';
+    return;
+  }
+
+  let entries = data.entries || [];
+  document.getElementById('auditlogs-total').textContent = '(' + entries.length + ')';
+
+  if (auditLogsSearchTerm) {
+    const term = auditLogsSearchTerm.toLowerCase();
+    entries = entries.filter(e =>
+      (e.mac || '').toLowerCase().includes(term) ||
+      (e.action || '').toLowerCase().includes(term) ||
+      (e.detail || '').toLowerCase().includes(term) ||
+      (e.operator || '').toLowerCase().includes(term)
+    );
+  }
+
+  document.getElementById('auditlogs-body').innerHTML = entries.length
+    ? entries.map(e => `
+      <tr>
+        <td>${esc(e.timestamp ? toLocalDateTime(e.timestamp) : '')}</td>
+        <td class="mono">${esc(e.mac || '—')}</td>
+        <td><span class="badge ${auditActionBadgeClass(e.action)}">${esc((e.action || '').replace('_', ' '))}</span></td>
+        <td>${esc(e.operator || '—')}</td>
+        <td><span class="badge ${auditResultBadgeClass(e.result)}">${esc(e.result || 'UNKNOWN')}</span></td>
+        <td style="max-width:420px;overflow-wrap:anywhere;">${esc(e.detail || '')}</td>
+      </tr>`).join('')
+    : `<tr><td colspan="6" class="empty">${auditLogsSearchTerm ? 'No audit entries match your search.' : 'No ISE actions have been taken from this console yet.'}</td></tr>`;
+
+  applyGlobalSearch();
+}
+
+document.getElementById('auditlogs-search').addEventListener('input', (e) => {
+  auditLogsSearchTerm = e.target.value.trim();
+  loadAuditLogs();
+});
+
+// ---- theme ----
+const THEME_KEY = 've-theme';
+function applyTheme(theme) {
+  document.body.classList.toggle('dark-theme', theme === 'dark');
+  document.documentElement.style.colorScheme = theme === 'dark' ? 'dark' : 'light';
+  const b = document.getElementById('theme-toggle');
+  if (b) b.textContent = theme === 'dark' ? '\u2600' : '\u263e';
+}
+applyTheme(localStorage.getItem(THEME_KEY) || 'light');
+document.getElementById('theme-toggle').addEventListener('click', () => {
+  const next = document.body.classList.contains('dark-theme') ? 'light' : 'dark';
+  localStorage.setItem(THEME_KEY, next); applyTheme(next);
+});
+
+// ---- init + light polling on the active page only ----
+function restorePageFromHash() {
+  const hash=(window.location.hash||'').replace(/^#/,'').trim();
+  const page=hash && document.getElementById('page-'+hash) ? hash : 'dashboard';
+  goToPage(page,{fromHash:true});
+}
+window.addEventListener('hashchange', restorePageFromHash);
+restorePageFromHash();
+setInterval(() => {
+  const active = document.querySelector('.page.active').id.replace('page-', '');
+  if (active === 'dashboard') loadDashboard();
+  if (active === 'assessments' && !assessmentCredentialIp) loadAssessments();
+  if (active === 'applications') loadApplications();
+  if (active === 'remediation') loadRemediation();
+  if (active === 'endpoints' && expandedEndpointKeys.size === 0) loadEndpoints();
+  if (active === 'ports') loadPortsPage();
+  if (active === 'endpoint-360' && ep360AutoRefresh && ep360SelectedIp) loadEndpoint360();
+  if (active === 'administration') loadAdministration();
+  if (active === 'auditlogs') loadAuditLogs();
+}, 6000);
+</script>
+</body>
+</html>

@@ -1,0 +1,37 @@
+# Local development services only. Application processes (posture_app.py,
+# posture_ui.py, ise_session_watcher.py) run directly on a Windows host so
+# posture_agent.ps1 can reach WinRM targets - see the project plan
+# Section 15, question 5. This compose file just gives you Postgres (and a
+# quick admin UI) without installing them by hand.
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: posture-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-posture}
+      POSTGRES_USER: ${POSTGRES_USER:-posture}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-posture}
+    ports:
+      - "5433:5432"
+    volumes:
+      - posture_pg_data:/var/lib/postgresql/data
+      - ./backend/db/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-posture}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  adminer:
+    image: adminer:4
+    container_name: posture-adminer
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+
+volumes:
+  posture_pg_data:

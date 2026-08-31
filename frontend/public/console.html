@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light only">
+<title>ISE Posture Console</title>
+<style>
+html { color-scheme: light only; }
+:root {
+  --bg: #ffffff;
+  --panel: #ffffff;
+  --border: #e5e7eb;
+  --border-soft: #f0f1f3;
+  --text: #111318;
+  --muted: #8a8f98;
+  --green: #16a34a;
+  --green-bg: #f0faf3;
+  --red: #dc2626;
+  --red-bg: #fef2f2;
+  --blue: #2563eb;
+  --gray-bg: #f7f7f8;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, "Segoe UI", Inter, Helvetica, Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+.mono { font-family: "SFMono-Regular", Consolas, Menlo, monospace; }
+.wrap { max-width: 780px; margin: 0 auto; padding: 48px 20px 80px; }
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 28px;
+}
+header h1 {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+header .meta { font-size: 12px; color: var(--muted); }
+.search-bar { margin-bottom: 16px; }
+.search-bar input {
+  width: 100%;
+  font-family: inherit;
+  background: #fff;
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+.search-bar input:focus { outline: none; border-color: var(--blue); }
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 20px;
+  overflow: hidden;
+}
+.panel-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--border-soft);
+  display: flex;
+  justify-content: space-between;
+  background: var(--gray-bg);
+}
+.panel-body { padding: 0; }
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 18px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.row:last-child { border-bottom: none; }
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--green);
+  flex-shrink: 0;
+}
+.ip { color: var(--text); min-width: 118px; font-weight: 500; }
+.empty { color: var(--muted); padding: 24px 18px; font-size: 13px; }
+button {
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  background: #fff;
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 6px 13px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+button:hover { border-color: #c9ccd1; background: var(--gray-bg); }
+button.skip:hover {
+  border-color: var(--red);
+  color: var(--red);
+  background: var(--red-bg);
+}
+button.run:hover { border-color: var(--blue); color: var(--blue); }
+button.override-link {
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  text-decoration: underline;
+  padding: 4px;
+}
+button.override-link:hover { color: var(--text); }
+button.confirm {
+  background: var(--text);
+  border-color: var(--text);
+  color: #fff;
+}
+button.cancel { border-color: transparent; color: var(--muted); }
+button:disabled { opacity: 0.4; cursor: default; }
+.spacer { flex: 1; }
+.cred-form {
+  display: none;
+  gap: 8px;
+  padding: 12px 18px 16px;
+  border-bottom: 1px solid var(--border-soft);
+  background: var(--gray-bg);
+}
+.cred-form.open { display: flex; align-items: center; flex-wrap: wrap; }
+.cred-form input {
+  font-family: inherit;
+  background: #fff;
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 7px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+}
+.results .row { align-items: flex-start; }
+.status-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 5px;
+  min-width: 104px;
+  text-align: center;
+}
+.status-COMPLIANT { background: var(--green-bg); color: var(--green); }
+.status-NON-COMPLIANT,
+.status-ERROR { background: var(--red-bg); color: var(--red); }
+.status-SKIPPED { background: var(--gray-bg); color: var(--muted); }
+.detail { color: var(--muted); font-size: 12.5px; }
+.time { color: var(--muted); font-size: 12px; min-width: 56px; }
+.mac {
+  font-size: 11.5px;
+  color: var(--text);
+  background: var(--gray-bg);
+  border: 1px solid var(--border);
+  padding: 2px 8px;
+  border-radius: 5px;
+  white-space: nowrap;
+}
+footer {
+  color: var(--muted);
+  font-size: 11.5px;
+  text-align: center;
+  margin-top: 24px;
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+<h1>ISE Posture Console</h1>
+<div class="meta" id="server-label"></div>
+</header>
+
+<div class="search-bar">
+<input type="text" id="search-input"
+       class="mono"
+       placeholder="Filter by IP, hostname, or MAC..."
+       autocomplete="off">
+</div>
+
+<div class="panel">
+<div class="panel-title">
+<span>Needs attention</span>
+<span id="pending-count">0</span>
+</div>
+<div class="panel-body" id="queue-list">
+<div class="empty">
+Nothing needs attention. New devices are checked automatically as they connect.
+</div>
+</div>
+</div>
+
+<div class="panel results">
+<div class="panel-title">
+<span>Results log</span>
+<span id="results-count">0</span>
+</div>
+<div class="panel-body" id="results-list">
+<div class="empty">Nothing checked yet.</div>
+</div>
+</div>
+
+<footer>
+Devices are checked automatically as they connect · polling every 4s
+</footer>
+</div>
+
+<script>
+const serverLabel = document.getElementById('server-label');
+serverLabel.textContent =
+  'posture server: ' + (window.__POSTURE_SERVER__ || '');
+
+let formOpenFor = null;
+let searchTerm = '';
+let currentPending = [];
+let currentResults = [];
+
+async function fetchJSON(url, opts) {
+  const res = await fetch(url, opts);
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  return res.json();
+}
+
+function applyPendingFilter(list) {
+  if (!searchTerm) return list;
+  return list.filter(ip =>
+    ip.toLowerCase().includes(searchTerm)
+  );
+}
+
+function applyResultsFilter(list) {
+  if (!searchTerm) return list;
+
+  return list.filter(r =>
+    (r.ip || '').toLowerCase().includes(searchTerm) ||
+    (r.computer || '').toLowerCase().includes(searchTerm) ||
+    (r.mac || '').toLowerCase().includes(searchTerm)
+  );
+}
+
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  }[c]));
+}
+
+function rowTemplate(ip) {
+  const safeIp = esc(ip);
+  const div = document.createElement('div');
+  div.className = 'device';
+
+  div.innerHTML = `
+    <div class="row">
+      <span class="dot"></span>
+      <span class="ip mono">${safeIp}</span>
+      <span class="spacer"></span>
+      <button class="run" data-ip="${safeIp}">Retry</button>
+      <button class="override-link" data-ip="${safeIp}">
+        different creds?
+      </button>
+      <button class="skip" data-ip="${safeIp}">Skip</button>
+    </div>
+    <div class="cred-form" data-ip="${safeIp}">
+      <input type="text"
+             class="username"
+             placeholder="Username (e.g. Administrator)">
+      <input type="password"
+             class="password"
+             placeholder="Password">
+      <button class="confirm" data-ip="${safeIp}">
+        Confirm &#9656;
+      </button>
+      <button class="cancel" data-ip="${safeIp}">
+        Cancel
+      </button>
+    </div>
+  `;
+
+  return div;
+}
+
+function renderQueue(pending) {
+  const list = document.getElementById('queue-list');
+
+  document.getElementById('pending-count').textContent =
+    pending.length;
+
+  if (pending.length === 0) {
+    list.innerHTML =
+      '<div class="empty">' +
+      'Nothing needs attention. New devices are checked automatically as they connect.' +
+      '</div>';
+    return;
+  }
+
+  list.innerHTML = '';
+  pending.forEach(ip =>
+    list.appendChild(rowTemplate(ip))
+  );
+}
+
+function renderResults(results) {
+  const list = document.getElementById('results-list');
+
+  document.getElementById('results-count').textContent =
+    results.length;
+
+  if (results.length === 0) {
+    list.innerHTML =
+      '<div class="empty">Nothing checked yet.</div>';
+    return;
+  }
+
+  list.innerHTML = '';
+
+  results.forEach(r => {
+    const status = r.status || 'ERROR';
+    const badgeClass = 'status-' + status;
+
+    const detailBits = [];
+
+    if (r.computer) detailBits.push(esc(r.computer));
+    if (r.detail) detailBits.push(esc(r.detail));
+
+    if (r.submitted === false) {
+      detailBits.push(
+        '(not submitted to ISE: ' +
+        esc(r.submitError || 'unknown error') +
+        ')'
+      );
+    }
+
+    const macBadge = r.mac
+      ? `<span class="mac mono">MAC: ${esc(r.mac)}</span>`
+      : '';
+
+    const row = document.createElement('div');
+    row.className = 'row';
+
+    row.innerHTML = `
+      <span class="time">${esc(r.time)}</span>
+      <span class="ip mono">${esc(r.ip)}</span>
+      <span class="status-badge ${esc(badgeClass)}">
+        ${esc(status)}
+      </span>
+      ${macBadge}
+      <span class="detail">
+        ${detailBits.join(' &middot; ')}
+      </span>
+    `;
+
+    list.appendChild(row);
+  });
+}
+
+async function refreshQueue() {
+  try {
+    const data = await fetchJSON('/api/needs_attention');
+
+    currentPending = data.needs_attention || [];
+
+    if (formOpenFor) return;
+
+    renderQueue(
+      applyPendingFilter(currentPending)
+    );
+  } catch (err) {
+    console.error('Queue refresh failed:', err);
+  }
+}
+
+async function refreshResults() {
+  try {
+    const data = await fetchJSON('/api/results');
+
+    currentResults = data.results || [];
+
+    renderResults(
+      applyResultsFilter(currentResults)
+    );
+  } catch (err) {
+    console.error('Results refresh failed:', err);
+  }
+}
+
+document.addEventListener('click', async e => {
+  const ip = e.target.dataset.ip;
+
+  if (!ip) return;
+
+  if (e.target.classList.contains('run')) {
+    e.target.disabled = true;
+    e.target.textContent = 'Retrying...';
+
+    try {
+      const data = await fetchJSON('/api/check', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ip})
+      });
+
+      currentPending = data.needs_attention || [];
+      renderQueue(
+        applyPendingFilter(currentPending)
+      );
+      await refreshResults();
+    } catch (err) {
+      console.error(err);
+      e.target.disabled = false;
+      e.target.textContent = 'Retry';
+    }
+  }
+
+  if (e.target.classList.contains('override-link')) {
+    document.querySelectorAll('.cred-form')
+      .forEach(f => f.classList.remove('open'));
+
+    const form = document.querySelector(
+      `.cred-form[data-ip="${ip}"]`
+    );
+
+    if (form) {
+      form.classList.add('open');
+      form.querySelector('.username').focus();
+      formOpenFor = ip;
+    }
+  }
+
+  if (e.target.classList.contains('cancel')) {
+    const form = document.querySelector(
+      `.cred-form[data-ip="${ip}"]`
+    );
+
+    if (form) form.classList.remove('open');
+
+    formOpenFor = null;
+  }
+
+  if (e.target.classList.contains('skip')) {
+    e.target.disabled = true;
+
+    try {
+      const data = await fetchJSON('/api/skip', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ip})
+      });
+
+      currentPending = data.needs_attention || [];
+
+      renderQueue(
+        applyPendingFilter(currentPending)
+      );
+
+      await refreshResults();
+    } catch (err) {
+      console.error(err);
+      e.target.disabled = false;
+    }
+  }
+
+  if (e.target.classList.contains('confirm')) {
+    const form = document.querySelector(
+      `.cred-form[data-ip="${ip}"]`
+    );
+
+    if (!form) return;
+
+    const username =
+      form.querySelector('.username').value.trim();
+
+    const password =
+      form.querySelector('.password').value;
+
+    if (!username || !password) return;
+
+    e.target.disabled = true;
+    e.target.textContent = 'Running...';
+
+    try {
+      const data = await fetchJSON('/api/check', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          ip,
+          username,
+          password
+        })
+      });
+
+      formOpenFor = null;
+
+      currentPending =
+        data.needs_attention || [];
+
+      renderQueue(
+        applyPendingFilter(currentPending)
+      );
+
+      await refreshResults();
+    } catch (err) {
+      console.error(err);
+      e.target.disabled = false;
+      e.target.textContent = 'Confirm ▶';
+    }
+  }
+});
+
+document.getElementById('search-input')
+  .addEventListener('input', e => {
+    searchTerm =
+      e.target.value.trim().toLowerCase();
+
+    if (!formOpenFor) {
+      renderQueue(
+        applyPendingFilter(currentPending)
+      );
+    }
+
+    renderResults(
+      applyResultsFilter(currentResults)
+    );
+  });
+
+refreshQueue();
+refreshResults();
+
+setInterval(refreshQueue, 4000);
+setInterval(refreshResults, 4000);
+</script>
+</body>
+</html>
